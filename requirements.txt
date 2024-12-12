@@ -1,0 +1,17 @@
+pillow
+pypdf2
+pytesseract
+watchdog
+tqdm
+pandas
+numpy
+opencv-python
+setuptools
+pyqt5
+spacy
+pdf2image
+ipython
+fitz
+pymupdf
+matplotlib
+pdfplumber
