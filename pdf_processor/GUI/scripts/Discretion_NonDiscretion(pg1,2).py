@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
+import fitz
 import pytesseract
 from PIL import Image
 from pdf2image import convert_from_path
@@ -7,8 +8,8 @@ import re
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from pdf_processor.utils.base_utils import extract_text_from_bbox
-from pdf_processor.pdf_processor.GUI.scripts.utils.display_utils import display_image_with_boxes
+from utils.base_utils import extract_text_from_bbox
+from utils.display_utils import display_image_with_boxes
 
 
 def has_docusign_signature(pdf_path):
