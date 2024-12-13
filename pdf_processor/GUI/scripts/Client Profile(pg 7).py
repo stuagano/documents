@@ -1,117 +1,81 @@
 import os
-import re
 import sys
+import json
 from pdf2image import convert_from_path
 from PIL import Image
 import pytesseract
-from utils.extract_utils import extract_text_from_bbox
-from utils.precondition_checker import check_for_signature
 
-def extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords, account_number = None, account_name = None):
-    """Extracts financial info, Tax Bracket determined by checkbox."""
-    x, y, width, height = client_profile_box  
-    cropped_img = img.crop((x, y, x + width, y + height))
-    text = pytesseract.image_to_string(cropped_img).strip()
-    info = {}
-    if account_number:
-        info["Account Number"] = account_number
-    if account_name:
-        info["Account Name"] = account_name
+from pdf_processor.utils import (
+    extract_text_from_bbox,
+    check_for_signature,
+    precondition_check,
+    display_image_with_boxes
+)
 
-    patterns = { 
-        "Annual Income": r"Annual Income:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
-        "Net Worth": r"Net Worth:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
-        "Liquid Net Worth": r"Liquid Net Worth:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
+def process_pdf(pdf_path, output_directory):
+    """Process a single PDF file."""
+    print(f"Processing PDF: {pdf_path}")
+    try:
+        # Convert PDF to images
+        images = convert_from_path(pdf_path, dpi=300)
+        if not images:
+            print("No pages found in PDF")
+            return
+            
+        # Run precondition check
+        print("Running precondition check...")
+        precondition_results = precondition_check(images)
+        print(f"Precondition results: {precondition_results}")
+        
+        # Extract data from page 7
+        page_image = images[6]  # 0-based index for page 7
+        extracted_data = extract_data(page_image, precondition_results)
+        print(f"Extracted data: {extracted_data}")
+        
+        # Save results
+        output_file = os.path.join(
+            output_directory,
+            f"{os.path.splitext(os.path.basename(pdf_path))[0]}_client_profile_output.json"
+        )
+        with open(output_file, 'w') as f:
+            json.dump(extracted_data, f, indent=4)
+        print(f"Results saved to: {output_file}")
+            
+    except Exception as e:
+        print(f"Error processing PDF {pdf_path}: {str(e)}")
+
+def extract_data(page_image, precondition_results):
+    """Extract data from page 7 of client profile."""
+    print("Extracting data from page 7...")
+    extracted_data = {
+        "Account Number": precondition_results.get("Account Number"),
+        "Account Name": precondition_results.get("Account Name"),
+        # Add other fields as needed
     }
-
-    for keyword, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            info[keyword] = match.group(1)
-        else:
-            info[keyword] = None       
-
-    checkbox_x, checkbox_y, checkbox_width, checkbox_height = tax_bracket_checkbox_coords
-    if is_checkbox_checked(img, checkbox_x, checkbox_y, checkbox_width, checkbox_height):
-        info["Tax Bracket"] = "0-24%" 
-    else:
-        info["Tax Bracket"] = "25%+"
-
-    return info
-
-def is_checkbox_checked(img, x, y, width, height):
-    """Determine if a checkbox is checked based on the image region."""
-    cropped_img = img.crop((x, y, x + width, y + height))
-    text = pytesseract.image_to_string(cropped_img).strip()
-    return bool(text)  # Adjust based on how the checkbox state is represented
-    """Extracts financial info, Tax Bracket determined by checkbox."""
-    x, y, width, height = client_profile_box  
-    cropped_img = img.crop((x, y, x + width, y + height))
-    text = pytesseract.image_to_string(cropped_img).strip()
-    info = {}
-
-    patterns = { 
-        "Annual Income": r"Annual Income:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
-        "Net Worth": r"Net Worth:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
-        "Liquid Net Worth": r"Liquid Net Worth:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
-    }
-
-    for keyword, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            info[keyword] = match.group(1)
-        else:
-            info[keyword] = None       
-
-    checkbox_x, checkbox_y, checkbox_width, checkbox_height = tax_bracket_checkbox_coords
-    if is_checkbox_checked(img, checkbox_x, checkbox_y, checkbox_width, checkbox_height):
-        info["Tax Bracket"] = "0-24%" 
-    else:
-        info["Tax Bracket"] = "25%+"
-
-    return info
-
-def process_pdf(pdf_path, output_directory, client_profile_box, tax_bracket_checkbox_coords):
-    """Processes a single PDF to extract financial information."""
-    images = convert_from_path(pdf_path)
-    for img in images:
-        info = extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords)
-        if info:
-            with open(os.path.join(output_directory, 'financial_info.txt'), 'a') as f:
-                f.write(f"PDF: {os.path.basename(pdf_path)}\n")
-                for key, value in info.items():
-                    f.write(f"{key}: {value}\n")
-                f.write("\n")
+    return extracted_data
 
 def main(input_directory, output_directory):
-    if not os.path.isdir(input_directory):
-        print(f"Invalid input directory: {input_directory}")
-        sys.exit(1)
-
-    os.makedirs(output_directory, exist_ok=True)
-
-    client_profile_box = (200, 600, 900, 500)  # Adjust as needed
-    tax_bracket_checkbox_coords = (100, 150, 20, 20)  # Example coordinates
-
+    """Process all PDFs in input directory."""
+    print(f"Starting processing from {input_directory}")
+    print(f"Saving results to {output_directory}")
+    
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+        print(f"Created output directory: {output_directory}")
+    
     for filename in os.listdir(input_directory):
         if filename.lower().endswith('.pdf'):
             pdf_path = os.path.join(input_directory, filename)
-            print(f"Processing: {pdf_path}")
-            try:
-                process_pdf(pdf_path, output_directory, client_profile_box, tax_bracket_checkbox_coords)
-                print(f"Successfully processed: {filename}\n")
-            except Exception as e:
-                print(f"Error processing {filename}: {e}\n")
+            print(f"\nProcessing: {filename}")
+            process_pdf(pdf_path, output_directory)
+        else:
+            print(f"Skipping non-PDF file: {filename}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python Client_Profile.py <input_directory> <output_directory>")
+        print("Usage: python 'Client Profile(pg 7).py' <input_directory> <output_directory>")
         sys.exit(1)
 
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
     main(input_dir, output_dir)
-
-
-
-

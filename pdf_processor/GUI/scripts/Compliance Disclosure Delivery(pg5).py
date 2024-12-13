@@ -1,9 +1,8 @@
 import pytesseract
 from PIL import Image
 import re
-from pdf_processor.pdf_processor.GUI.scripts.utils.extract_utils import extract_text_from_bbox, extract_emails
-from pdf_processor.pdf_processor.GUI.scripts.utils.precondition_checker import check_for_signature
-
+from pdf_processor.utils.precondition_checker import extract_text_from_bbox, extract_emails
+from pdf_processor.utils.precondition_checker import check_for_signature
 # Define bounding boxes and the page number
 bounding_boxes = {
     "page_number": 5,

@@ -24,8 +24,10 @@ import importlib.util
 
 from ...utils.base_utils import (
     extract_text_from_bbox,
-    check_for_signature
+    check_for_signature,
 )
+
+from ...utils.precondition_checker import precondition_check
 
 
 
@@ -202,7 +204,7 @@ class SimpleUI(QWidget):
             images = convert_from_path(self.pdf_file, dpi=300)
             
             # Run the precondition checker before processing
-            precondition_results = precondition_check(images, parent=self)
+            precondition_results = precondition_check(images)
 
             # Retrieve Account Number and Account Name
             account_number = precondition_results.get("Account Number", "Not Found")

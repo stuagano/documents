@@ -1,5 +1,6 @@
 # page8.py
 
+import re
 import pytesseract
 from PIL import Image
 import json
