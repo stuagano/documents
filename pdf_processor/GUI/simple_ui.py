@@ -2,6 +2,11 @@
 
 import sys
 import os
+
+# Add project root to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+sys.path.insert(0, project_root)
+
 import json
 import re
 import subprocess
@@ -16,13 +21,14 @@ from pdf2image import convert_from_path
 from PIL import Image, ImageDraw
 import pytesseract
 import importlib.util
-from scripts.display_utils import display_image_with_boxes  # Ensure this utility is available
 
-def load_script_module(script_path):
-    spec = importlib.util.spec_from_file_location("script_module", script_path)
-    script_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(script_module)
-    return script_module
+from ...utils.base_utils import (
+    extract_text_from_bbox,
+    check_for_signature
+)
+
+
+
 
 class ImageDisplayWindow(QDialog):
     def __init__(self, pixmap, parent=None):
@@ -57,6 +63,24 @@ class SimpleUI(QWidget):
             return
         
         self.initUI()
+
+    def load_script_module(self, script_path):
+        """Load a Python script module dynamically."""
+        try:
+            module_name = os.path.splitext(os.path.basename(script_path))[0]
+            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            if spec is None:
+                raise ImportError(f"Could not load specification for module: {script_path}")
+                
+            script_module = importlib.util.module_from_spec(spec)
+            if script_module is None:
+                raise ImportError(f"Could not create module from spec: {script_path}")
+            
+            spec.loader.exec_module(script_module)
+            return script_module
+            
+        except Exception as e:
+            raise ImportError(f"Failed to load script module {script_path}: {str(e)}")
 
     def initUI(self):
         self.setWindowTitle('Simple Script Runner')
@@ -160,57 +184,33 @@ class SimpleUI(QWidget):
         if not self.input_directory or not self.output_directory or not self.pdf_file:
             QMessageBox.warning(self, 'Warning', 'Please select input directory, output directory, and PDF file.')
             return
+
         selected_script_item = self.script_list.currentItem()
         if not selected_script_item:
             QMessageBox.warning(self, 'Warning', 'Please select a script to run.')
             return
+
         selected_script = selected_script_item.text()
         script_path = os.path.join(self.scripts_dir, selected_script)
+
         try:
-            script_module = load_script_module(script_path)
+            # Load the selected script module
+            script_module = self.load_script_module(script_path)
             print(f"Loaded script: {selected_script}")
-            bounding_boxes = script_module.bounding_boxes  # Ensure each script defines `bounding_boxes`
-            page_number = bounding_boxes["page_number"]
-            boxes = bounding_boxes["boxes"]
-            print(f"Bounding boxes: {bounding_boxes}")
-            
+
+            # Convert PDF to images for precondition checking
             images = convert_from_path(self.pdf_file, dpi=300)
-            if page_number > len(images):
-                QMessageBox.warning(self, 'Warning', f'Page {page_number} does not exist in the PDF.')
-                return
             
-            page_image = images[page_number - 1].convert('RGB')
-            
-            # Display image with bounding boxes
-            display_image_with_boxes(page_image.copy(), boxes)
-            
-            # Ask for user confirmation
-            reply = QMessageBox.question(
-                self, 
-                'Confirm Bounding Boxes',
-                'Are the bounding boxes correct?',
-                QMessageBox.Yes | QMessageBox.No, 
-                QMessageBox.Yes
-            )
-            
-            if reply == QMessageBox.Yes:
-                # Proceed with extraction
-                extracted_data = script_module.extract_data(page_image, boxes)
-                print(f"Extracted data: {extracted_data}")
-                
-                # Save extracted data
-                output_file = os.path.join(self.output_directory, f'{os.path.splitext(os.path.basename(self.pdf_file))[0]}_FeeToBeCharged.json')
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    import json
-                    json.dump(extracted_data, f, indent=4)
-                
-                QMessageBox.information(self, 'Success', f'Extracted data saved to {output_file}')
-            else:
-                QMessageBox.warning(self, 'Cancelled', 'Extraction cancelled by user.')
+            # Run the precondition checker before processing
+            precondition_results = precondition_check(images, parent=self)
+
+            # Retrieve Account Number and Account Name
+            account_number = precondition_results.get("Account Number", "Not Found")
+            account_name = precondition_results.get("Account Name", "Not Found")
+
         except Exception as e:
-            QMessageBox.critical(self, 'Error', f'Failed to process PDF: {e}')
-            print(f"Error: {e}")
-            
+            QMessageBox.critical(self, 'Error', f'An error occurred: {e}')
+
     def display_image_with_boxes(self, image, bounding_boxes):
         """
         Displays the image with bounding boxes in a new pop-out window.

@@ -10,7 +10,6 @@ import numpy as np
 import pytesseract
 import pandas as pd
 from PIL import Image, ImageDraw
-import fitz  # PyMuPDF
 
 def has_docusign_signature(pdf_path):
     """
@@ -23,15 +22,18 @@ def has_docusign_signature(pdf_path):
         bool: True if a DocuSign signature is likely present, False otherwise.
     """
     try:
-        pdf_document = fitz.open(pdf_path)
-        for page_num in range(len(pdf_document)):
-            page = pdf_document.load_page(page_num)
-            text = page.get_text()
+        # Convert PDF pages to images
+        images = convert_from_path(pdf_path)
+        
+        for page_image in images:
+            # Use OCR to extract text from the page
+            text = pytesseract.image_to_string(page_image)
             if "DocuSign" in text:
                 return True
         return False
+        
     except Exception as e:
-        print(f"Error processing {pdf_path}: {e}")
+        print(f"Error checking for DocuSign signature: {e}")
         return False
 
 def process_pdf(pdf_path, output_directory):
