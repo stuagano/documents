@@ -1,18 +1,22 @@
-import pytesseract
-from PIL import Image
+import os
 import re
-from pdf_processor.pdf_processor.GUI.scripts.utils.extract_utils import extract_text_from_bbox
-from pdf_processor.pdf_processor.GUI.scripts.utils.precondition_checker import check_for_signature
+import sys
+from pdf2image import convert_from_path
+from PIL import Image
+import pytesseract
+from utils.extract_utils import extract_text_from_bbox
+from utils.precondition_checker import check_for_signature
 
-def extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords, account_number, account_name):
+def extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords, account_number = None, account_name = None):
     """Extracts financial info, Tax Bracket determined by checkbox."""
     x, y, width, height = client_profile_box  
     cropped_img = img.crop((x, y, x + width, y + height))
     text = pytesseract.image_to_string(cropped_img).strip()
-    info = {
-        "Account Number": account_number,
-        "Account Name": account_name
-    }
+    info = {}
+    if account_number:
+        info["Account Number"] = account_number
+    if account_name:
+        info["Account Name"] = account_name
 
     patterns = { 
         "Annual Income": r"Annual Income:\s*([$0-9,]+(?:\s*-\s*[$0-9,]+)?)",
@@ -34,24 +38,12 @@ def extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords,
         info["Tax Bracket"] = "25%+"
 
     return info
-    #!/usr/bin/env python
-# coding: utf-8
-
-import os
-import re
-import sys
-import pandas as pd
-import pytesseract
-from pdf2image import convert_from_path
-from PIL import Image, ImageDraw
 
 def is_checkbox_checked(img, x, y, width, height):
     """Determine if a checkbox is checked based on the image region."""
     cropped_img = img.crop((x, y, x + width, y + height))
     text = pytesseract.image_to_string(cropped_img).strip()
     return bool(text)  # Adjust based on how the checkbox state is represented
-
-def extract_financial_info(img, client_profile_box, tax_bracket_checkbox_coords):
     """Extracts financial info, Tax Bracket determined by checkbox."""
     x, y, width, height = client_profile_box  
     cropped_img = img.crop((x, y, x + width, y + height))
