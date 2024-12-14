@@ -15,10 +15,10 @@ from PyQt5.QtWidgets import (
     QFileDialog, QListWidget, QMessageBox, QGraphicsView,
     QGraphicsScene, QGraphicsPixmapItem, QHBoxLayout, QDialog, QScrollArea
 )
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QPixmap, QImage, QPen, QColor
 from PyQt5.QtCore import Qt
 from pdf2image import convert_from_path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, UnidentifiedImageError
 import pytesseract
 import importlib.util
 
@@ -47,13 +47,53 @@ class ImageDisplayWindow(QDialog):
         self.graphics_view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)
         scroll.setWidget(self.graphics_view)
         layout.addWidget(scroll)
+
+        # Add a button to trigger text extraction
+        self.extract_button = QPushButton("Extract Text", self)
+        self.extract_button.clicked.connect(self.extract_text_from_selected_area)  # Connect to the extract function
+        layout.addWidget(self.extract_button)
+
         self.setLayout(layout)
+
+        # Add a rectangle for selection
+        self.selection_rect = self.scene.addRect(0, 0, 100, 100, QPen(QColor(255, 0, 0)))  # Initial size and color
+        self.selection_rect.setFlag(QGraphicsPixmapItem.ItemIsMovable, True)  # Make it movable
+        # Add attributes to store the original position and size of the rectangle
+        self.selection_rect.setData(0, self.selection_rect.pos())
+        self.selection_rect.setData(1, self.selection_rect.rect().size())
+
+    def extract_text_from_selected_area(self):
+        """Extracts text from the area defined by the selection rectangle."""
+        # Get the current position and size of the rectangle
+        rect = self.selection_rect.rect()
+        x = int(rect.x())
+        y = int(rect.y())
+        width = int(rect.width())
+        height = int(rect.height())
+
+        # Assuming self.parent() is the SimpleUI instance
+        if isinstance(self.parent(), SimpleUI):
+            # Get the original PIL Image from the parent
+            original_image = self.parent().current_image
+
+            if original_image:
+                # Call the extract_text_from_box method with the adjusted coordinates
+                extracted_text = self.parent().extract_text_from_box(original_image, (x, y, width, height))
+                # Do something with the extracted text, like display it
+                QMessageBox.information(self, "Extracted Text", extracted_text)
+            else:
+                QMessageBox.warning(self, "Warning", "No image loaded.")
+        else:
+            QMessageBox.warning(self, "Warning", "Could not access original image.")
 
 class SimpleUI(QWidget):
     def __init__(self):
         super().__init__()
         # Get the directory containing simple_ui.py
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        # Add current_image attribute to store the loaded image
+        self.current_image = None
+
         self.scripts_dir = os.path.join(self.base_dir, 'scripts')
         
         print(f"Base directory: {self.base_dir}")
@@ -96,6 +136,7 @@ class SimpleUI(QWidget):
         
         self.script_list = QListWidget(self)
         self.populate_script_list()
+        self.script_list.setCurrentRow(0)  # Select the first script by default
         layout.addWidget(self.script_list)
 
         # Input Directory selection
@@ -140,6 +181,34 @@ class SimpleUI(QWidget):
         
         layout.addLayout(pdf_layout)
 
+        # Config File selection
+        self.config_dir = os.path.join(self.base_dir, 'configs')
+        if not os.path.exists(self.config_dir):
+            os.makedirs(self.config_dir)
+            QMessageBox.warning(self, 'Warning', f'Configs directory created at: {self.config_dir}')
+
+        self.config_files = [f for f in os.listdir(self.config_dir) if f.endswith('.json')]
+        if not self.config_files:
+            QMessageBox.warning(self, 'Warning', 'No config files found in the configs directory.')
+        else:
+            config_layout = QHBoxLayout()
+            self.config_label = QLabel('Config File:', self)
+            config_layout.addWidget(self.config_label)
+
+            # self.config_path = QLabel('Not Selected', self) # Replace with combo box
+            # config_layout.addWidget(self.config_path)
+            self.config_combo_box = QComboBox(self)
+            self.config_combo_box.addItems(self.config_files)
+            config_layout.addWidget(self.config_combo_box)
+
+            # self.btn_select_config = QPushButton('Select Config File', self)
+            # self.btn_select_config.clicked.connect(self.select_config_file)
+            # config_layout.addWidget(self.btn_select_config)  # Remove or comment out if not needed
+            layout.addLayout(config_layout)
+
+            # Set the default config file path
+            self.config_file = os.path.join(self.config_dir, self.config_files[0])
+
         # Image display area (Removed from main window)
 
         # Process PDF button
@@ -153,6 +222,8 @@ class SimpleUI(QWidget):
         self.input_directory = ''
         self.output_directory = ''
         self.pdf_file = ''
+        # Add config_file attribute
+        self.config_file = '' 
 
     def populate_script_list(self):
         try:
@@ -182,9 +253,27 @@ class SimpleUI(QWidget):
             self.pdf_file = file_path
             self.pdf_path.setText(file_path)
 
+    # def select_config_file(self): # Replace with combo box selection
+    #     file_path, _ = QFileDialog.getOpenFileName(self, 'Select Config File', '', 'JSON Files (*.json)')
+    #     if file_path:
+    #         self.config_file = file_path
+    #         self.config_path.setText(file_path)
+
+    def run_script_with_config(self, script_path):
+        """Run the selected script with the selected config file."""
+        self.config_file = os.path.join(self.config_dir, self.config_combo_box.currentText())
+        # Pass config file path as an argument
+        subprocess.run(['python', script_path, 
+                        self.input_directory, self.output_directory, 
+                        self.config_file])
+
     def process_pdf(self):
-        if not self.input_directory or not self.output_directory or not self.pdf_file:
-            QMessageBox.warning(self, 'Warning', 'Please select input directory, output directory, and PDF file.')
+        if not self.input_directory or not self.output_directory or not self.pdf_file or not self.config_file:
+            QMessageBox.warning(
+                self, 
+                'Warning', 
+                'Please select input directory, output directory, PDF file, and config file.'
+            )
             return
 
         selected_script_item = self.script_list.currentItem()
@@ -200,8 +289,16 @@ class SimpleUI(QWidget):
             script_module = self.load_script_module(script_path)
             print(f"Loaded script: {selected_script}")
 
+            # Call the main function of the script module, passing input and output directories
+            if hasattr(script_module, 'main'):
+                self.run_script_with_config(script_path)
+            else:
+                QMessageBox.warning(self, 'Warning', f"The selected script '{selected_script}' does not have a 'main' function.")
+                return
+
             # Convert PDF to images for precondition checking
             images = convert_from_path(self.pdf_file, dpi=300)
+            self.current_image = images[0]  # Store the first image for later use
             
             # Run the precondition checker before processing
             precondition_results = precondition_check(images)

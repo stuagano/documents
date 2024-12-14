@@ -1,0 +1,77 @@
+{
+  "account_number": {
+    "pages": [1, 2, 10],
+    "bbox": [0, 0, 100, 100],
+    "description": "Client account number"
+  },
+  "client_name": {
+    "pages": [1, 2],
+    "bbox": [0, 0, 100, 100],
+    "description": "Client's full name"
+  },
+  "null_void_checker": {
+    "pages": [7],
+    "bbox": [0, 0, 100, 100],
+    "description": "Check for null or void markings"
+  },
+  "owner_initials_page_1_2": {
+    "pages": [1, 2],
+    "bbox": [0, 0, 100, 100],
+    "description": "Owner's initials on page 1-2"
+  },
+  "owner_initials_page_10": {
+    "pages": [10],
+    "bbox": [0, 0, 100, 100],
+    "description": "Owner's initials on page 10"
+  },
+  "signatures_page_12": {
+    "pages": [12],
+    "bbox": [0, 0, 100, 100],
+    "description": "Signatures on page 12"
+  },
+  "email": {
+    "pages": [5],
+    "bbox": [0, 0, 100, 100],
+    "description": "Client's email address"
+  },
+  "client_profile": {
+    "pages": [7],
+    "bbox": [0, 0, 100, 100],
+    "description": "Client profile information"
+  },
+  "account_profile": {
+    "pages": [7],
+    "bbox": [0, 0, 100, 100],
+    "description": "Account profile information"
+  },
+  "investment_experience": {
+    "pages": [7],
+    "bbox": [0, 0, 100, 100],
+    "description": "Client's investment experience"
+  },
+  "page_8_content": {
+    "pages": [8],
+    "bbox": [0, 0, 100, 100],
+    "description": "Full content of page 8"
+  },
+  "page_8_text": {
+    "page": 8,
+    "bbox": [200, 300, 400, 50],
+    "description": "Text from the grey box on page 8"
+  },
+  "page_9_content": {
+    "pages": [9],
+    "bbox": [0, 0, 100, 100],
+    "description": "Full content of page 9"
+  },
+  "page_10_content": {
+    "pages": [10],
+    "bbox": [0, 0, 100, 100],
+    "description": "Full content of page 10"
+  },
+  "page_11_content": {
+    "pages": [11],
+    "bbox": [0, 0, 100, 100],
+    "description": "Full content of page 11"
+  }
+}

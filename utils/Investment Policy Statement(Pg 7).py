@@ -67,6 +67,17 @@ def display_image_with_boxes(image, boxes, title="Confirm Bounding Boxes"):
 
     image.show(title=title)
 
+def remove_grid_lines(image, lines):
+    """Removes detected grid lines from the image."""
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(np.array(image), (x1, y1), (x2, y2), (255, 255, 255), 2) 
+    return image
+
+
+
+
 def extract_text_from_box(image, box):
     """
     Crops the image to the bounding box and extracts text using OCR.
@@ -113,7 +124,12 @@ def extract_data(page_image, boxes):
     for box in boxes:
         x, y, width, height = box
         cropped_img = page_image.crop((x, y, x + width, y + height))
-        text = pytesseract.image_to_string(cropped_img).strip()
+
+        # Detect and remove grid lines
+        grid_lines = detect_grid_lines(cropped_img)
+        cropped_img = remove_grid_lines(cropped_img, grid_lines)
+        text = pytesseract.image_to_string(cropped_img).strip()  
+
         if box == (100, 150, 400, 200):
             extracted_data["Investment Experience"] = extract_investment_experience(text)
         elif box == (600, 150, 400, 200):

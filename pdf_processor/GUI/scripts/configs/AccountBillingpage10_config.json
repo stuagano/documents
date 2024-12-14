@@ -1,0 +1,15 @@
+{
+  "page_number": 10,
+  "boxes": [
+    {
+      "description": "Fee to be Charged",
+      "coordinates": [450, 750, 400, 200],
+      "post_processing_logic": "Extract the fee amount (numerical value)."
+    },
+    {
+      "description": "Additional Instructions",
+      "coordinates": [100, 950, 800, 200],
+      "post_processing_logic": "Extract the additional instructions."
+    }
+  ]
+}

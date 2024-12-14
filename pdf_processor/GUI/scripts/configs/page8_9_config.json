@@ -1,0 +1,27 @@
+{
+  "account_number": {
+    "page": 1,
+    "bbox": [10, 10, 100, 100],
+    "description": "Account number on page 1"
+  },
+  "page_8_content": {
+    "page": 8,
+    "bbox": [10, 10, 100, 100],
+    "description": "Content from page 8"
+  },
+  "page_9_content": {
+    "page": 9,
+    "bbox": [10, 10, 100, 100],
+    "description": "Content from page 9"
+  },
+  "preconditions": [
+    {
+      "field": "account_number",
+      "condition": "exists"
+    },
+    {
+      "field": "page_8_content",
+      "condition": "exists"
+    }
+  ]
+}

@@ -11,7 +11,6 @@ pyqt5
 spacy
 pdf2image
 ipython
-fitz
 pymupdf
 matplotlib
 pdfplumber

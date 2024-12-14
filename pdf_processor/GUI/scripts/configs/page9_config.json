@@ -1,0 +1,10 @@
+{
+  "page_number": 9,
+  "boxes": [
+    {
+      "description": "Name(s)",
+      "coordinates": [200, 300, 400, 50],
+      "post_processing_logic": "Extract the text to the right of 'Name(s):'"
+    }
+  ]
+}

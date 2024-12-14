@@ -1,0 +1,20 @@
+{
+  "page_number": 12,
+  "boxes": [
+    {
+      "description": "Advisor Signature",
+      "coordinates": [300, 100, 200, 100],
+      "post_processing_logic": "Check if a signature is present"
+    },
+    {
+      "description": "Client Name",
+      "coordinates": [100, 300, 800, 100],
+      "post_processing_logic": "Extract the client name"
+    },
+    {
+      "description": "Client Signature",
+      "coordinates": [100, 450, 800, 100],
+      "post_processing_logic": "Check if a signature is present"
+    }
+  ]
+}
