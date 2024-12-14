@@ -1,6 +1,9 @@
+import csv
 import argparse
 import json
 import os
+import logging
+import datetime
 
 from PIL import Image, ImageDraw
 import pytesseract
@@ -97,9 +100,26 @@ def process_pdf(pdf_path, config, investment_experience_type):
     return extracted_data
 
 def write_to_csv(data, output_path):
-    """Writes extracted data to a CSV file."""
-    # Implement CSV writing logic here
-    pass
+    """Writes extracted data to a CSV file, handling potential errors.
+    Logs errors to a file named 'csv_errors.log'.
+    """
+    # Configure logging
+    logging.basicConfig(filename='csv_errors.log', level=logging.ERROR, 
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+
+    try:
+        if data:  # Check if data is not empty
+            with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = data.keys()  # Get the keys from the first data item
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()  # Write the field names as the header
+                writer.writerow(data)  # Write the data to the CSV
+        else:
+            logging.error(f"No data to write for {output_path}") 
+    except Exception as e:
+        logging.error(f"Error writing to CSV at {output_path}: {e}") 
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract data from PDF files.')
@@ -143,13 +163,16 @@ if __name__ == "__main__":
                 else:
                     print("Invalid input. Please enter 'radio' or 'text'.")
 
-        for experience_type in ["radio", "text"]:
-            for filename in pdf_files:
-                pdf_path = os.path.join(input_dir, filename)
-                print(f"Processing: {pdf_path} (Investment Experience: {experience_type})")
-                extracted_data = process_pdf(pdf_path, config, experience_type)
+        for filename in pdf_files:
+            pdf_path = os.path.join(input_dir, filename)
+            print(f"Processing: {pdf_path} (Investment Experience: {investment_experience_type})")
+            extracted_data = process_pdf(pdf_path, config, investment_experience_type)
 
-                # ... (rest of your processing logic) ...
+            if extracted_data:
+                output_file = os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv')
+                write_to_csv(extracted_data, output_file)
+            else:
+                print(f"Failed to process {pdf_path}. Skipping...")
 
     except Exception as e:
         print(f"An error occurred: {e}")

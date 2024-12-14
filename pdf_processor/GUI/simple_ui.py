@@ -21,6 +21,10 @@ from pdf2image import convert_from_path
 from PIL import Image, ImageDraw, UnidentifiedImageError
 import pytesseract
 import importlib.util
+import logging
+import tempfile
+import csv
+from skimage.metrics import structural_similarity as ssim
 
 from ...utils.base_utils import (
     extract_text_from_bbox,
@@ -29,6 +33,9 @@ from ...utils.base_utils import (
 
 from ...utils.precondition_checker import precondition_check
 
+# Set up logging
+logging.basicConfig(filename='pdf_processor.log', level=logging.ERROR, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 
@@ -97,14 +104,19 @@ class SimpleUI(QWidget):
         self.scripts_dir = os.path.join(self.base_dir, 'scripts')
         
         print(f"Base directory: {self.base_dir}")
-        print(f"Scripts directory: {self.scripts_dir}")
+        print(f"Scripts directory: {self.scripts_dir}")        
         
-        # Verify scripts directory exists
-        if not os.path.exists(self.scripts_dir):
-            QMessageBox.warning(self, 'Warning', f'Scripts directory not found at: {self.scripts_dir}')
-            return
-        
-        self.initUI()
+        try:
+            # Verify scripts directory exists
+            if not os.path.exists(self.scripts_dir):
+                QMessageBox.warning(self, 'Warning', f'Scripts directory not found at: {self.scripts_dir}')
+                return
+            
+            self.initUI()
+        except Exception as e:
+            QMessageBox.critical(self, 'Error', f'An error occurred during initialization: {e}')
+            logging.exception("Error during initialization: %s", e)
+
 
     def load_script_module(self, script_path):
         """Load a Python script module dynamically."""
@@ -122,6 +134,7 @@ class SimpleUI(QWidget):
             return script_module
             
         except Exception as e:
+            logging.exception("Failed to load script module %s: %s", script_path, e)
             raise ImportError(f"Failed to load script module {script_path}: {str(e)}")
 
     def initUI(self):
@@ -184,32 +197,38 @@ class SimpleUI(QWidget):
         # Config File selection
         self.config_dir = os.path.join(self.base_dir, 'configs')
         if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
-            QMessageBox.warning(self, 'Warning', f'Configs directory created at: {self.config_dir}')
+            try:
+                os.makedirs(self.config_dir)
+                QMessageBox.warning(self, 'Warning', f'Configs directory created at: {self.config_dir}')
+            except OSError as e:
+                QMessageBox.critical(self, 'Error', f'Failed to create configs directory: {e}')
+                logging.exception("Failed to create configs directory: %s", e)
+                return
 
-        self.config_files = [f for f in os.listdir(self.config_dir) if f.endswith('.json')]
-        if not self.config_files:
-            QMessageBox.warning(self, 'Warning', 'No config files found in the configs directory.')
-        else:
-            config_layout = QHBoxLayout()
-            self.config_label = QLabel('Config File:', self)
-            config_layout.addWidget(self.config_label)
+        try:
+            self.config_files = [f for f in os.listdir(self.config_dir) if f.endswith('.json')]
+            if not self.config_files:
+                QMessageBox.warning(self, 'Warning', 'No config files found in the configs directory.')
+            else:  # This block now correctly executes if config files are found
+                config_layout = QHBoxLayout()
+                self.config_label = QLabel('Config File:', self)
+                config_layout.addWidget(self.config_label)
+                self.config_combo_box = QComboBox(self) # Assuming QComboBox is imported
+                self.config_combo_box.addItems(self.config_files)
+                config_layout.addWidget(self.config_combo_box)
+                layout.addLayout(config_layout)
 
-            # self.config_path = QLabel('Not Selected', self) # Replace with combo box
-            # config_layout.addWidget(self.config_path)
-            self.config_combo_box = QComboBox(self)
-            self.config_combo_box.addItems(self.config_files)
-            config_layout.addWidget(self.config_combo_box)
+                # Set the default config file path (This should also be inside the else block)
+                try:
+                    self.config_file = os.path.join(self.config_dir, self.config_files[0])
+                except IndexError:
+                    QMessageBox.warning(self, 'Warning', 'No config files found to select.')
+                    logging.warning("No config files found to select.")
+        except Exception as e:  # Handle potential exceptions during file listing
+            QMessageBox.critical(self, "Error", f"An error occurred: {e}")
+            logging.exception("An error occurred during config file loading: %s", e)
 
-            # self.btn_select_config = QPushButton('Select Config File', self)
-            # self.btn_select_config.clicked.connect(self.select_config_file)
-            # config_layout.addWidget(self.btn_select_config)  # Remove or comment out if not needed
-            layout.addLayout(config_layout)
-
-            # Set the default config file path
-            self.config_file = os.path.join(self.config_dir, self.config_files[0])
-
-        # Image display area (Removed from main window)
+            # Image display area (Removed from main window)
 
         # Process PDF button
         self.btn_process = QPushButton('Process PDF', self)
@@ -221,17 +240,23 @@ class SimpleUI(QWidget):
         # Initialize directories and PDF path
         self.input_directory = ''
         self.output_directory = ''
+        self.previous_image_path = None  # Store path to previous image
+        
         self.pdf_file = ''
         # Add config_file attribute
         self.config_file = '' 
 
     def populate_script_list(self):
         try:
-            scripts = [f for f in os.listdir(self.scripts_dir) if f.endswith('.py')]
-            if scripts:
-                self.script_list.addItems(scripts)
+            if os.path.exists(self.scripts_dir):
+                scripts = [f for f in os.listdir(self.scripts_dir) if f.endswith('.py')]
+                if scripts:
+                    self.script_list.addItems(scripts)
+                else:
+                    QMessageBox.information(self, 'Info', 'No scripts found in the scripts directory.')
             else:
-                QMessageBox.information(self, 'Info', 'No scripts found in the scripts directory.')
+                QMessageBox.warning(self, 'Warning', f'Scripts directory not found: {self.scripts_dir}')
+                logging.warning("Scripts directory not found: %s", self.scripts_dir)
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'Error loading scripts: {e}')
 
@@ -261,17 +286,58 @@ class SimpleUI(QWidget):
 
     def run_script_with_config(self, script_path):
         """Run the selected script with the selected config file."""
-        self.config_file = os.path.join(self.config_dir, self.config_combo_box.currentText())
-        # Pass config file path as an argument
-        subprocess.run(['python', script_path, 
-                        self.input_directory, self.output_directory, 
-                        self.config_file])
+        try:
+            self.config_file = os.path.join(self.config_dir, self.config_combo_box.currentText())
+            # Pass config file path as an argument
+            subprocess.run(['python', script_path,
+                            self.input_directory, self.output_directory, 
+                            self.config_file], check=True) 
+        except subprocess.CalledProcessError as e:
+            QMessageBox.critical(self, 'Error', f'Script execution failed: {e}')
+            logging.exception("Script execution failed: %s", e)
+        except FileNotFoundError as e:
+            QMessageBox.critical(self, 'Error', f'File not found: {e}')
+            logging.exception("File not found: %s", e)
 
     def process_pdf(self):
+        def compare_images(image1, image2, threshold=0.95):
+            """Compares two images using SSIM and returns True if they are similar."""
+            image1 = image1.convert("L")  # Convert to grayscale
+            image2 = image2.convert("L")
+            ssim_score = ssim(image1, image2)
+            return ssim_score >= threshold
+        
+        def show_image_comparison_dialog(image1, image2):
+            """Displays a dialog showing both images for user comparison."""
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Image Comparison")
+            layout = QHBoxLayout() # Assuming QHBoxLayout is imported
+
+            # Convert images to QPixmap and add them to the layout
+            pixmap1 = self.pil2pixmap(image1)
+            pixmap2 = self.pil2pixmap(image2)
+            label1 = QLabel() # Assuming QLabel is imported
+            label1.setPixmap(pixmap1)
+            label2 = QLabel()
+            label2.setPixmap(pixmap2)
+            layout.addWidget(label1)
+            layout.addWidget(label2)
+            dialog.setLayout(layout)
+
+            # Add buttons for user confirmation
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel) # Assuming QDialogButtonBox is imported
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+            layout.addWidget(button_box)
+            
+            # Show the dialog and return the result
+            result = dialog.exec_()
+            return result == QDialog.Accepted  # True if OK is pressed, False otherwise
+
         if not self.input_directory or not self.output_directory or not self.pdf_file or not self.config_file:
             QMessageBox.warning(
-                self, 
-                'Warning', 
+                self,
+                'Warning',
                 'Please select input directory, output directory, PDF file, and config file.'
             )
             return
@@ -297,15 +363,41 @@ class SimpleUI(QWidget):
                 return
 
             # Convert PDF to images for precondition checking
-            images = convert_from_path(self.pdf_file, dpi=300)
-            self.current_image = images[0]  # Store the first image for later use
-            
-            # Run the precondition checker before processing
-            precondition_results = precondition_check(images)
+            try:
+                images = convert_from_path(self.pdf_file, dpi=300)
+                self.current_image = images[0]  # Store the first image for later use
 
-            # Retrieve Account Number and Account Name
-            account_number = precondition_results.get("Account Number", "Not Found")
-            account_name = precondition_results.get("Account Name", "Not Found")
+                # Image comparison before extraction
+                if self.previous_image_path:
+                    try:
+                        previous_image = Image.open(self.previous_image_path)
+                        if not compare_images(self.current_image, previous_image):
+                            if not show_image_comparison_dialog(self.current_image, previous_image):
+                                QMessageBox.information(self, "Information", "Extraction cancelled.")
+                                return  # Stop the process if the user cancels
+                    except FileNotFoundError:
+                        QMessageBox.warning(self, "Warning", "Previous image file not found.")
+                    except Exception as e:
+                        QMessageBox.warning(self, "Warning", f"Error comparing images: {e}")
+
+                # Store current image for next comparison
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+                    self.current_image.save(temp_file.name)
+                    self.previous_image_path = temp_file.name
+
+                # Run the precondition checker before processing
+                precondition_results = precondition_check(images)
+
+                # Retrieve Account Number and Account Name
+                account_number = precondition_results.get("Account Number", "Not Found")
+                account_name = precondition_results.get("Account Name", "Not Found")
+
+            except (FileNotFoundError, UnidentifiedImageError) as e:
+                QMessageBox.critical(self, 'Error', f'Error processing PDF: {e}')
+                logging.exception("Error processing PDF: %s", e)
+            except Exception as e:
+                QMessageBox.critical(self, 'Error', f'An unexpected error occurred: {e}')
+                logging.exception("Unexpected error: %s", e)
 
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'An error occurred: {e}')
