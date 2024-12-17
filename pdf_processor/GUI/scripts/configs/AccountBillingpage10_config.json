@@ -11,5 +11,17 @@
       "coordinates": [100, 950, 800, 200],
       "post_processing_logic": "Extract the additional instructions."
     }
-  ]
+  ],
+  "global_fields": [
+    { 
+        "field_name": "account_number",
+        "page_number": 1,
+        "coordinates": [100, 100, 200, 50] 
+    },
+    {
+        "field_name": "account_name",
+        "page_number": 1,
+        "coordinates": [100, 150, 300, 50] 
+    }    
+  ] 
 }

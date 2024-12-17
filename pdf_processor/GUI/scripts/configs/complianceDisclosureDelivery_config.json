@@ -1,48 +1,49 @@
 {
-  /* Configuration for processing Compliance Disclosure Delivery documents on page 5. */
   "page_number": 5,
   "document_type": "Compliance Disclosure Delivery",
-
-  /* Text patterns to identify the section related to Compliance Disclosure Delivery. */
   "section_identifier": {
-    "text_pattern": "Compliance Disclosure Delivery", /* Example text pattern. */
-    "case_sensitive": false, /* Set to true for case-sensitive matching. */
-    "min_confidence": 0.8 /* Minimum confidence score for text detection. */
+    "text_pattern": "Compliance Disclosure Delivery",
+    "case_sensitive": false,
+    "min_confidence": 0.8
   },
-
-  /* Coordinates (bounding boxes) for key elements on the page.
-  Coordinates should be in the format [x1, y1, x2, y2], representing top-left and bottom-right corners of the bounding box. */
   "key_elements": {
     "delivery_date": {
-        "coordinates": [100, 200, 200, 220], /* Example coordinates - adjust as needed */
-        "regex_pattern": "\\d{2}/\\d{2}/\\d{4}" /* Optional: regular expression to further refine extraction. */
+      "coordinates": [100, 200, 200, 220],
+      "regex_pattern": "\\d{2}/\\d{2}/\\d{4}"
     },
     "client_name": {
-        "coordinates": [300, 250, 450, 270], /* Example coordinates */
-        "text_pattern": "Client Name:", /* Optional: Look for a label before the client name */
-        "extraction_method": "text_after_label" /* Optional: Method to extract data relative to label */
+      "coordinates": [300, 250, 450, 270],
+      "text_pattern": "Client Name:",
+      "extraction_method": "text_after_label"
     },
     "delivery_method": {
-      "coordinates": [150, 300, 300, 320], /* Example coordinates */
-      "options": ["Email", "Mail", "In-Person"], /* Options for the delivery method */
-      "extraction_method": "closest_option" /* Choose the closest option from the list */
+      "coordinates": [150, 300, 300, 320],
+      "options": ["Email", "Mail", "In-Person"],
+      "extraction_method": "closest_option"
     },
     "confirmation_status": {
-        "coordinates": [400, 400, 500, 420],
-        "options": ["Confirmed", "Pending", "Rejected"], /* possible values for confirmation_status. */
-        "extraction_method": "text_match"
+      "coordinates": [400, 400, 500, 420],
+      "options": ["Confirmed", "Pending", "Rejected"],
+      "extraction_method": "text_match"
     },
     "signature": {
-        "coordinates": [550, 600, 700, 680],  /* approximate bounding box of signature area. */
-        "is_signature": true
+      "coordinates": [550, 600, 700, 680], 
+      "is_signature": true
     }
-    
   },
-
-    /* Additional processing instructions. */
+  "global_fields": {
+    "account_number": {
+      "page_number": 1,
+      "coordinates": [100, 100, 200, 120]
+    },
+    "account_name": {
+      "page_number": 1,
+      "coordinates": [300, 100, 400, 120]
+    }
+  },
   "processing_instructions": {
-    "error_handling": "continue",  /* Options: 'stop', 'continue', 'skip'. */
-    "fallback_method": "ocr",  /* Fallback method if primary extraction fails (e.g., OCR). */
-    "confidence_threshold": 0.7 /* Minimum confidence for extraction to be considered valid. */
+    "error_handling": "continue", 
+    "fallback_method": "ocr",
+    "confidence_threshold": 0.7
   }
 }

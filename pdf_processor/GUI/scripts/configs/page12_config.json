@@ -1,5 +1,17 @@
 {
   "page_number": 12,
+  "global_fields": [
+    {
+      "field_name": "account_number",
+      "page_number": 1,
+      "coordinates": [100, 100, 200, 50] 
+    },
+    {
+      "field_name": "account_name",
+      "page_number": 1,
+      "coordinates": [100, 150, 400, 50] 
+    }
+  ],
   "boxes": [
     {
       "description": "Advisor Signature",

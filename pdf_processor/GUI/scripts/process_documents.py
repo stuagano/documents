@@ -4,6 +4,7 @@ import json
 import os
 import logging
 import datetime
+import pandas as pd
 
 from PIL import Image, ImageDraw
 import pytesseract
@@ -99,6 +100,11 @@ def process_pdf(pdf_path, config, investment_experience_type):
 
     return extracted_data
 
+def display_dataframe_head(df):
+    """Prints the first 5 rows of a Pandas DataFrame to the console."""
+    print(df.head())
+
+
 def write_to_csv(data, output_path):
     """Writes extracted data to a CSV file, handling potential errors.
     Logs errors to a file named 'csv_errors.log'.
@@ -115,6 +121,8 @@ def write_to_csv(data, output_path):
 
                 writer.writeheader()  # Write the field names as the header
                 writer.writerow(data)  # Write the data to the CSV
+                df = pd.DataFrame([data])  # Create DataFrame
+                display_dataframe_head(df)  # Display first 5 rows
         else:
             logging.error(f"No data to write for {output_path}") 
     except Exception as e:

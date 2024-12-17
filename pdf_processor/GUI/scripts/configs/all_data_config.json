@@ -1,0 +1,37 @@
+{
+  "combined_config": {
+    "AccountBillingpage10_config": {
+      /* Content of AccountBillingpage10_config.json */
+    },
+    "account_profile_config": {
+      /* Content of account_profile_config.json */
+    },
+    "clientprofile": {
+      /* Content of clientprofile.json */
+    },
+    "complianceDisclosureDelivery_config": {
+      /* Content of complianceDisclosureDelivery_config.json */
+    },
+    "discretion_nondiscretion_config": {
+      /* Content of discretion_nondiscretion_config.json */
+    },
+    "investmentExperience_config": {
+      /* Content of investmentExperience_config.json */
+    },
+    "investment_policy_statement_config": {
+      /* Content of investment_policy_statement_config.json */
+    },
+    "page12_config": {
+      /* Content of page12_config.json */
+    },
+    "page8_9_config": {
+      /* Content of page8_9_config.json */
+    },
+    "page8_config": {
+      /* Content of page8_config.json */
+    },
+    "page9_config": {
+      /* Content of page9_config.json */
+    }
+  }
+}

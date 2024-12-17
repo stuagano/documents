@@ -1,5 +1,17 @@
  {
   "document_name": "Investment Policy Statement",
+  "global_fields": [
+    {
+      "field_name": "account_number",
+      "page_number": 1,
+      "bbox": [100, 100, 200, 50] 
+    },
+    {
+      "field_name": "account_name",
+      "page_number": 1,
+      "bbox": [300, 100, 400, 50]
+    }
+  ],
   "page_number": 7,
   "investment_experience_type": "radio", // or "text"
   "investment_experience_radio_bbox": [100, 150, 400, 200], // Example coordinates
@@ -61,5 +73,6 @@
     [100, 150, 400, 200],
     [600, 150, 400, 200],
     [100, 400, 900, 300]
-  ]
+  ],
+  "version": "1.0"
 }

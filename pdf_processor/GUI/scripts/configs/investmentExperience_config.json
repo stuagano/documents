@@ -5,5 +5,17 @@
     "Placeholder 3",
     "Placeholder 4",
     "Placeholder 5"
-  ]
+  ],
+  "global_fields": [
+    {
+      "field_name": "account_number",
+      "page_number": 1,
+      "coordinates": [100, 100, 200, 200] 
+    },
+    {
+      "field_name": "account_name",
+      "page_number": 1,
+      "coordinates": [300, 100, 400, 200] 
+    }
+  ]  
 }

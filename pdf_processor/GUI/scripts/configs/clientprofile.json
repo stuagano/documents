@@ -1,4 +1,16 @@
 {
   "page_number": 7,
-  "boxes": []
+  "boxes": [],
+  "globals": [    
+      {
+          "field_name": "account_number",
+          "page_number": 1,
+          "bbox": [100, 100, 200, 150]
+      },
+      {
+          "field_name": "account_name",
+          "page_number": 1,
+          "bbox": [300, 100, 400, 150]
+      }
+  ]  
 }

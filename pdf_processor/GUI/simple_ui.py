@@ -24,6 +24,7 @@ import importlib.util
 import logging
 import tempfile
 import csv
+import pandas as pd
 from skimage.metrics import structural_similarity as ssim
 
 from ...utils.base_utils import (
@@ -246,6 +247,11 @@ class SimpleUI(QWidget):
         # Add config_file attribute
         self.config_file = '' 
 
+    def display_dataframe_head(self, df):
+        """Prints the first 5 rows of the DataFrame to the console."""
+        print("DataFrame Head:")
+        print(df.head())
+
     def populate_script_list(self):
         try:
             if os.path.exists(self.scripts_dir):
@@ -388,6 +394,9 @@ class SimpleUI(QWidget):
                 # Run the precondition checker before processing
                 precondition_results = precondition_check(images)
 
+                # ... (rest of your process_pdf function) ...
+                
+                self.display_dataframe_head(pd.DataFrame(precondition_results))
                 # Retrieve Account Number and Account Name
                 account_number = precondition_results.get("Account Number", "Not Found")
                 account_name = precondition_results.get("Account Name", "Not Found")
