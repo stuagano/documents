@@ -1,6 +1,7 @@
 import unittest
 import tkinter as tk
 from tkinter import filedialog
+import os
 from unittest.mock import patch
 
 from pdf_processor.GUI.simple_ui import SimpleUI
@@ -13,6 +14,12 @@ class TestSimpleUI(unittest.TestCase):
 
     def tearDown(self):
         self.root.destroy()
+        # Clean up any temporary files created during tests
+        try:
+            os.remove("output.csv")  # Replace with the actual file name if different
+        except FileNotFoundError:
+            pass  # Ignore if the file doesn't exist
+
 
     def test_widgets_exist(self):
         self.assertIsNotNone(self.ui.browse_button)
@@ -34,27 +41,27 @@ class TestSimpleUI(unittest.TestCase):
         self.assertEqual(self.ui.file_path.get(), '')
         self.assertEqual(self.ui.file_label.cget('text'), 'Selected File: ')
 
-    @patch('pdf_processor.GUI.simple_ui.process_documents')
+    @patch('pdf_processor.ui.simple_ui.process_documents')  # Updated import path
     def test_process_button(self, mock_process_documents):
         self.ui.file_path.set('/path/to/file.pdf')
         self.ui.process_button.invoke()
         mock_process_documents.assert_called_once_with('/path/to/file.pdf')
         self.assertEqual(self.ui.status_label.cget('text'), 'Processing...')
 
-    @patch('pdf_processor.GUI.simple_ui.process_documents')
+    @patch('pdf_processor.ui.simple_ui.process_documents')  # Updated import path
     def test_process_button_no_file(self, mock_process_documents):
         self.ui.process_button.invoke()
         mock_process_documents.assert_not_called()
         self.assertEqual(self.ui.status_label.cget('text'), 'Please select a file first.')
 
-    @patch('pdf_processor.GUI.simple_ui.process_documents')
+    @patch('pdf_processor.ui.simple_ui.process_documents')  # Updated import path
     def test_process_button_error(self, mock_process_documents):
         mock_process_documents.side_effect = Exception('Test Exception')
         self.ui.file_path.set('/path/to/file.pdf')
         self.ui.process_button.invoke()
         self.assertEqual(self.ui.status_label.cget('text'), 'Error: Test Exception')
 
-    @patch('pdf_processor.GUI.simple_ui.process_documents')
+    @patch('pdf_processor.ui.simple_ui.process_documents')  # Updated import path
     def test_process_button_success(self, mock_process_documents):
         self.ui.file_path.set('/path/to/file.pdf')
         self.ui.process_button.invoke()

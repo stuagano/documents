@@ -1,37 +1,106 @@
 {
   "combined_config": {
     "AccountBillingpage10_config": {
-      /* Content of AccountBillingpage10_config.json */
+      "fields_to_extract": [
+        {
+          "field_name": "billing_address",
+          "coordinates": [
+            70,
+            620,
+            550,
+            700
+          ]
+        }
+      ]
     },
     "account_profile_config": {
-      /* Content of account_profile_config.json */
+      "fields_to_extract": [
+        {
+          "field_name": "account_name",
+          "coordinates": [
+            70,
+            140,
+            550,
+            200
+          ]
+        },
+        {
+          "field_name": "account_number",
+          "coordinates": [
+            70,
+            200,
+            550,
+            260
+          ]
+        }
+      ]
     },
     "clientprofile": {
-      /* Content of clientprofile.json */
+      "fields_to_extract": [
+        {
+          "field_name": "client_name",
+          "coordinates": [
+            70,
+            140,
+            550,
+            200
+          ]
+        }
+      ]
     },
     "complianceDisclosureDelivery_config": {
-      /* Content of complianceDisclosureDelivery_config.json */
+      "fields_to_extract": [
+        {
+          "field_name": "compliance_disclosure",
+          "coordinates": [
+            70,
+            140,
+            550,
+            200
+          ]
+        }
+      ]
     },
     "discretion_nondiscretion_config": {
-      /* Content of discretion_nondiscretion_config.json */
+      "fields_to_extract": [
+        {
+          "field_name": "discretion_type",
+          "coordinates": [
+            70,
+            140,
+            550,
+            200
+          ]
+        }
+      ]
     },
     "investmentExperience_config": {
-      /* Content of investmentExperience_config.json */
+      "fields_to_extract": {} 
     },
     "investment_policy_statement_config": {
-      /* Content of investment_policy_statement_config.json */
+      "fields_to_extract": {}
     },
     "page12_config": {
-      /* Content of page12_config.json */
+      "fields_to_extract": {}
     },
     "page8_9_config": {
-      /* Content of page8_9_config.json */
+      "fields_to_extract": [
+        {
+          "field_name": "some_field",
+          "coordinates": [
+            70,
+            140,
+            550,
+            200
+          ]
+        }
+      ]
     },
     "page8_config": {
-      /* Content of page8_config.json */
+      "fields_to_extract": {}
     },
     "page9_config": {
-      /* Content of page9_config.json */
+      "fields_to_extract": {}
     }
   }
 }

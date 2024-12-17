@@ -200,5 +200,5 @@ if __name__ == "__main__":
             output_file = os.path.abspath(os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv')) # Sanitize output_file
             write_to_csv(extracted_data, output_file)
         else:
-            print(f"Failed to process {pdf_path}. Skipping..
+            print(f"Failed to process {pdf_path}. Skipping..")
     print("Processing complete.")

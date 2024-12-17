@@ -6,7 +6,7 @@ import sys
 
 # Assuming process_documents.py is in the same directory
 # Adjust the import path if necessary
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pdf_processor', 'GUI', 'scripts')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pdf_processor', 'ui', 'scripts')))
 from process_documents import process_documents
 
 class TestProcessDocuments(unittest.TestCase):
@@ -25,6 +25,9 @@ class TestProcessDocuments(unittest.TestCase):
         # Clean up the dummy config files
         for filename in self.config_files:
             os.remove(filename)
+        # Clean up any other temporary files
+        if os.path.exists("temp_output.json"):
+            os.remove("temp_output.json")
 
 
     @patch('builtins.open', new_callable=mock_open, read_data='test pdf content')
