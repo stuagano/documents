@@ -1,0 +1,1 @@
+print(default_api.run_terminal_command(command = "touch pdf_processor/core/__init__.py"))

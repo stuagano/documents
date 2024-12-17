@@ -5,6 +5,9 @@ import os
 import logging
 import datetime
 import pandas as pd
+import json
+import shlex
+import jsonschema
 
 from PIL import Image, ImageDraw
 import pytesseract
@@ -13,6 +16,22 @@ from pdf_processor.utils import (get_pdf_images,
                                   remove_gridlines_from_image,
                                   run_precondition_checks)
 from pdf_processor.utils.base_utils import display_image_with_boxes
+
+
+def validate_config(config_path):
+    """Validates the configuration file against the schema."""
+    schema_path = os.path.join(os.path.dirname(config_path), "config.json")  # Assuming schema is in the same directory
+    
+    with open(config_path, 'r') as config_file, open(schema_path, 'r') as schema_file:
+        try:
+            config_data = json.load(config_file)
+            schema_data = json.load(schema_file)
+            jsonschema.validate(instance=config_data, schema=schema_data)
+            print('Config file is valid')
+        except jsonschema.exceptions.ValidationError as e:
+            raise ValueError(f"Invalid configuration file: {e}")
+        except Exception as e:
+            raise ValueError(f"Error validating configuration file: {e}")
 
 
 def read_config(config_path):
@@ -136,53 +155,50 @@ if __name__ == "__main__":
     parser.add_argument('config_path', help='Path to the config.json file.')
     args = parser.parse_args()
 
-    input_dir = args.input_dir
-    output_dir = args.output_dir
-    config_path = args.config_path
+    input_dir = os.path.abspath(args.input_dir)  # Sanitize input_dir
+    output_dir = os.path.abspath(args.output_dir)  # Sanitize output_dir
+    config_path = os.path.abspath(args.config_path)  # Sanitize config_path
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    try:
-        config = read_config(config_path)  # Read the configuration file
-        pdf_files = [f for f in os.listdir(input_dir) if f.endswith('.pdf')]
-        precondition_results = run_precondition_checks(input_dir, pdf_files, config)  # Run precondition checks
+    
+    validate_config(config_path) # Validate the configuration file
+    config = read_config(config_path)  # Read the configuration file
+    pdf_files = [f for f in os.listdir(input_dir) if f.endswith('.pdf')]
+    precondition_results = run_precondition_checks(input_dir, pdf_files, config)  # Run precondition checks
 
-        # Display precondition results
-        for result in precondition_results:
-            if result['failed_checks'] > 0:
-                print(f"Precondition checks failed for {result['filename']}: {result.get('failed_checks', 0)} checks failed.")
+    # Display precondition results
+    for result in precondition_results:
+        if result['failed_checks'] > 0:
+            print(f"Precondition checks failed for {result['filename']}: {result.get('failed_checks', 0)} checks failed.")
 
-        # Prompt user if there were any failures
-        if any(result.get('failed_checks', 0) > 0 for result in precondition_results):
-            proceed = input("Precondition checks had warnings for some documents. Do you want to continue? (y/n): ")
-            if proceed.lower() != 'y':
-                print("Processing aborted.")
-                exit()
+    # Prompt user if there were any failures
+    if any(result.get('failed_checks', 0) > 0 for result in precondition_results):
+        proceed = input("Precondition checks had warnings for some documents. Do you want to continue? (y/n): ")
+        if proceed.lower() != 'y':
+            print("Processing aborted.")
+            exit()
 
-        # Process PDFs if preconditions pass or user chooses to continue
-        investment_experience_type = config.get("investment_experience_type")
+    # Process PDFs if preconditions pass or user chooses to continue
+    investment_experience_type = config.get("investment_experience_type")
 
-        if investment_experience_type is None:
-            while True:
-                investment_experience_type = input("Enter the type of 'Investment Experience' field (radio/text): ").lower()
-                if investment_experience_type in ("radio", "text"):
-                    break
-                else:
-                    print("Invalid input. Please enter 'radio' or 'text'.")
-
-        for filename in pdf_files:
-            pdf_path = os.path.join(input_dir, filename)
-            print(f"Processing: {pdf_path} (Investment Experience: {investment_experience_type})")
-            extracted_data = process_pdf(pdf_path, config, investment_experience_type)
-
-            if extracted_data:
-                output_file = os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv')
-                write_to_csv(extracted_data, output_file)
+    if investment_experience_type is None:
+        while True:
+            investment_experience_type = input("Enter the type of 'Investment Experience' field (radio/text): ").lower()
+            if investment_experience_type in ("radio", "text"):
+                break
             else:
-                print(f"Failed to process {pdf_path}. Skipping...")
+                print("Invalid input. Please enter 'radio' or 'text'.")
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    for filename in pdf_files:
+        pdf_path = os.path.abspath(os.path.join(input_dir, filename)) # Sanitize pdf_path
+        print(f"Processing: {pdf_path} (Investment Experience: {investment_experience_type})")
+        extracted_data = process_pdf(pdf_path, config, investment_experience_type)
 
+        if extracted_data:
+            output_file = os.path.abspath(os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv')) # Sanitize output_file
+            write_to_csv(extracted_data, output_file)
+        else:
+            print(f"Failed to process {pdf_path}. Skipping..
     print("Processing complete.")

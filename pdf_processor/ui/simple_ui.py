@@ -27,12 +27,14 @@ import csv
 import pandas as pd
 from skimage.metrics import structural_similarity as ssim
 
-from ...utils.base_utils import (
-    extract_text_from_bbox,
-    check_for_signature,
-)
-
-from ...utils.precondition_checker import precondition_check
+from pdf_processor.logic.pdf_processor import (  # Importing from pdf_processor.py
+    precondition_check, 
+    process_pdf_with_config,
+    compare_images, 
+    show_image_comparison_dialog,
+    extract_data_from_pdf,  # New import
+    convert_pdf_to_images
+) 
 
 # Set up logging
 logging.basicConfig(filename='pdf_processor.log', level=logging.ERROR, 
@@ -95,6 +97,7 @@ class ImageDisplayWindow(QDialog):
             QMessageBox.warning(self, "Warning", "Could not access original image.")
 
 class SimpleUI(QWidget):
+
     def __init__(self):
         super().__init__()
         # Get the directory containing simple_ui.py
@@ -114,9 +117,12 @@ class SimpleUI(QWidget):
                 return
             
             self.initUI()
-        except Exception as e:
-            QMessageBox.critical(self, 'Error', f'An error occurred during initialization: {e}')
-            logging.exception("Error during initialization: %s", e)
+        except FileNotFoundError as e:
+            QMessageBox.critical(self, 'Error', f'File not found during initialization: {e}')
+            logging.exception("File not found during initialization: %s", e)
+        except OSError as e:
+            QMessageBox.critical(self, 'Error', f'OS error during initialization: {e}')
+            logging.exception("OS error during initialization: %s", e)
 
 
     def load_script_module(self, script_path):
@@ -139,6 +145,7 @@ class SimpleUI(QWidget):
             raise ImportError(f"Failed to load script module {script_path}: {str(e)}")
 
     def initUI(self):
+
         self.setWindowTitle('Simple Script Runner')
         self.setGeometry(100, 100, 1000, 700)  # Increased size for better image viewing
 
@@ -207,7 +214,7 @@ class SimpleUI(QWidget):
                 return
 
         try:
-            self.config_files = [f for f in os.listdir(self.config_dir) if f.endswith('.json')]
+            self.config_files = [f for f in os.listdir(self.config_dir) if f.endswith('.json')] 
             if not self.config_files:
                 QMessageBox.warning(self, 'Warning', 'No config files found in the configs directory.')
             else:  # This block now correctly executes if config files are found
@@ -226,8 +233,8 @@ class SimpleUI(QWidget):
                     QMessageBox.warning(self, 'Warning', 'No config files found to select.')
                     logging.warning("No config files found to select.")
         except Exception as e:  # Handle potential exceptions during file listing
-            QMessageBox.critical(self, "Error", f"An error occurred: {e}")
-            logging.exception("An error occurred during config file loading: %s", e)
+            QMessageBox.critical(self, "Error", f"An error occurred during config file loading: {e}")
+            logging.exception("An error occurred during config file loading: %s", e)       
 
             # Image display area (Removed from main window)
 
@@ -248,6 +255,7 @@ class SimpleUI(QWidget):
         self.config_file = '' 
 
     def display_dataframe_head(self, df):
+
         """Prints the first 5 rows of the DataFrame to the console."""
         print("DataFrame Head:")
         print(df.head())
@@ -265,47 +273,24 @@ class SimpleUI(QWidget):
                 logging.warning("Scripts directory not found: %s", self.scripts_dir)
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'Error loading scripts: {e}')
+            logging.exception("Error loading scripts: %s", e)
 
     def select_input_directory(self):
+
         directory = QFileDialog.getExistingDirectory(self, 'Select Input Directory')
         if directory:
             self.input_directory = directory
             self.input_dir_path.setText(directory)
 
     def select_output_directory(self):
+
         directory = QFileDialog.getExistingDirectory(self, 'Select Output Directory')
         if directory:
             self.output_directory = directory
             self.output_dir_path.setText(directory)
 
-    def select_pdf_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Select PDF File', '', 'PDF Files (*.pdf)')
-        if file_path:
-            self.pdf_file = file_path
-            self.pdf_path.setText(file_path)
-
-    # def select_config_file(self): # Replace with combo box selection
-    #     file_path, _ = QFileDialog.getOpenFileName(self, 'Select Config File', '', 'JSON Files (*.json)')
-    #     if file_path:
-    #         self.config_file = file_path
-    #         self.config_path.setText(file_path)
-
-    def run_script_with_config(self, script_path):
-        """Run the selected script with the selected config file."""
-        try:
-            self.config_file = os.path.join(self.config_dir, self.config_combo_box.currentText())
-            # Pass config file path as an argument
-            subprocess.run(['python', script_path,
-                            self.input_directory, self.output_directory, 
-                            self.config_file], check=True) 
-        except subprocess.CalledProcessError as e:
-            QMessageBox.critical(self, 'Error', f'Script execution failed: {e}')
-            logging.exception("Script execution failed: %s", e)
-        except FileNotFoundError as e:
-            QMessageBox.critical(self, 'Error', f'File not found: {e}')
-            logging.exception("File not found: %s", e)
-
     def process_pdf(self):
+
         def compare_images(image1, image2, threshold=0.95):
             """Compares two images using SSIM and returns True if they are similar."""
             image1 = image1.convert("L")  # Convert to grayscale
@@ -314,13 +299,14 @@ class SimpleUI(QWidget):
             return ssim_score >= threshold
         
         def show_image_comparison_dialog(image1, image2):
-            """Displays a dialog showing both images for user comparison."""
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Image Comparison")
-            layout = QHBoxLayout() # Assuming QHBoxLayout is imported
 
-            # Convert images to QPixmap and add them to the layout
-            pixmap1 = self.pil2pixmap(image1)
+            """Displays a dialog showing both images for user comparison."""
+            dialog = QDialog(self) # Assuming QDialog is imported
+            dialog.setWindowTitle("Image Comparison") 
+            layout = QHBoxLayout() 
+
+            # Convert PIL Images to QPixmap and add them to the layout
+            pixmap1 = self.pil2pixmap(image1) 
             pixmap2 = self.pil2pixmap(image2)
             label1 = QLabel() # Assuming QLabel is imported
             label1.setPixmap(pixmap1)
@@ -362,19 +348,19 @@ class SimpleUI(QWidget):
             print(f"Loaded script: {selected_script}")
 
             # Call the main function of the script module, passing input and output directories
-            if hasattr(script_module, 'main'):
-                self.run_script_with_config(script_path)
-            else:
-                QMessageBox.warning(self, 'Warning', f"The selected script '{selected_script}' does not have a 'main' function.")
-                return
-
+            # if hasattr(script_module, 'main'):
+            #     self.run_script_with_config(script_path)
+            # else:
+            #     QMessageBox.warning(self, 'Warning', f"The selected script '{selected_script}' does not have a 'main' function.")
+            #     return
+            
             # Convert PDF to images for precondition checking
-            try:
-                images = convert_from_path(self.pdf_file, dpi=300)
-                self.current_image = images[0]  # Store the first image for later use
+            
+            images = convert_pdf_to_images(self.pdf_file) # moved to pdf_processor.py
+            self.current_image = images[0]  # Store the first image for later use
 
-                # Image comparison before extraction
-                if self.previous_image_path:
+            # Image comparison before extraction
+            if self.previous_image_path:
                     try:
                         previous_image = Image.open(self.previous_image_path)
                         if not compare_images(self.current_image, previous_image):
@@ -386,32 +372,26 @@ class SimpleUI(QWidget):
                     except Exception as e:
                         QMessageBox.warning(self, "Warning", f"Error comparing images: {e}")
 
-                # Store current image for next comparison
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-                    self.current_image.save(temp_file.name)
-                    self.previous_image_path = temp_file.name
+            # Store current image for next comparison
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+                self.current_image.save(temp_file.name)
+                self.previous_image_path = temp_file.name
 
-                # Run the precondition checker before processing
-                precondition_results = precondition_check(images)
+            # Run the precondition checker before processing
+            precondition_results = precondition_check(images)
+            self.display_dataframe_head(pd.DataFrame(precondition_results))            
+            extracted_data = extract_data_from_pdf(self.pdf_file, self.config_file)
+            print(extracted_data)
+            
+                #account_number = precondition_results.get("Account Number", "Not Found")
+                #account_name = precondition_results.get("Account Name", "Not Found")
 
-                # ... (rest of your process_pdf function) ...
-                
-                self.display_dataframe_head(pd.DataFrame(precondition_results))
-                # Retrieve Account Number and Account Name
-                account_number = precondition_results.get("Account Number", "Not Found")
-                account_name = precondition_results.get("Account Name", "Not Found")
-
-            except (FileNotFoundError, UnidentifiedImageError) as e:
-                QMessageBox.critical(self, 'Error', f'Error processing PDF: {e}')
-                logging.exception("Error processing PDF: %s", e)
-            except Exception as e:
-                QMessageBox.critical(self, 'Error', f'An unexpected error occurred: {e}')
-                logging.exception("Unexpected error: %s", e)
-
-        except Exception as e:
-            QMessageBox.critical(self, 'Error', f'An error occurred: {e}')
+        except ImportError as e:
+            QMessageBox.critical(self, 'Error', f'Import error: {e}')
+            logging.exception("Import error: %s", e)
 
     def display_image_with_boxes(self, image, bounding_boxes):
+
         """
         Displays the image with bounding boxes in a new pop-out window.
         
@@ -434,6 +414,7 @@ class SimpleUI(QWidget):
         self.image_window.exec_()
 
     def pil2pixmap(self, pil_image):
+
         """Convert PIL Image to QPixmap."""
         rgb_image = pil_image.convert('RGB')
         data = rgb_image.tobytes('raw', 'RGB')
@@ -441,6 +422,7 @@ class SimpleUI(QWidget):
         return QPixmap.fromImage(qimage)
 
     def extract_text_from_box(self, image, box):
+
         """
         Crops the image to the bounding box and extracts text using OCR.
         
@@ -457,6 +439,7 @@ class SimpleUI(QWidget):
         return text.strip()
 
     def extract_investment_data(self, text):
+
         """
         Extracts investment experience data from the extracted text.
         
@@ -479,6 +462,7 @@ class SimpleUI(QWidget):
         return data
 
     def extract_client_profile(self, text):
+
         """
         Extracts client profile data from the extracted text.
         
@@ -501,6 +485,7 @@ class SimpleUI(QWidget):
         return data
 
     def extract_account_profile(self, text):
+
         """
         Extracts account profile data from the extracted text.
         

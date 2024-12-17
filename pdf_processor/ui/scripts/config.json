@@ -1,0 +1,81 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Configuration Schema",
+    "description": "Schema for validating the configuration file used for PDF processing.",
+    "type": "object",
+    "properties": {
+        "account_number": {
+            "type": "object",
+            "description": "Configuration for extracting the account number.",
+            "properties": {
+                "pages": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "description": "Page numbers where the account number might be found."
+                },
+                "bbox": {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "description": "Bounding box coordinates (x1, y1, x2, y2) for the account number."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the field."
+                }
+            },
+            "required": ["pages", "bbox", "description"]
+        },
+        "client_name": {
+            "type": "object",
+            "description": "Configuration for extracting the client's name.",
+            "properties": {
+                "pages": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "description": "Page numbers where the client's name might be found."
+                },
+                "bbox": {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "description": "Bounding box coordinates (x1, y1, x2, y2) for the client's name."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the field."
+                }
+            },
+            "required": ["pages", "bbox", "description"]
+        },
+        
+        // ... (Add similar schema definitions for other fields: null_void_checker, owner_initials_page_1_2, etc.) ...
+
+        "page_8_text": {
+            "type": "object",
+            "description": "Configuration for extracting text from a specific area on page 8.",
+            "properties": {
+                "page": {
+                    "type": "integer",
+                    "description": "The page number (should be 8 in this case)."
+                },
+                "bbox": {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "description": "Bounding box coordinates (x1, y1, x2, y2) for the text area."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the field."
+                }
+            },
+            "required": ["page", "bbox", "description"]
+        } 
+        // ... (Add similar schema definitions for other page content fields: page_9_content, page_10_content, etc.) ...
+    },
+    "additionalProperties": false 
+}
