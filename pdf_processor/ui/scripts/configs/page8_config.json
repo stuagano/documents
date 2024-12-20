@@ -2,14 +2,14 @@
     "page_number": 8,
     "boxes": [
         {
-            "description": "Name(s)",
-            "coordinates": [200, 300, 400, 50],
-            "post_processing_logic": "Regular expression: r\"Name\\(s\\):\\s*(.+)\" to extract the text after 'Name(s):'"
+            "DESCRIPTION": "Name(s)",
+            "COORDINATES": [200, 300, 400, 50],
+            "POST_PROCESSING_LOGIC": "Regular expression: r\"Name\\(s\\):\\s*(.+)\" to extract the text after 'Name(s):'"
         },
         {
-            "description": "Investment Amount",
-            "coordinates": [100, 400, 300, 50],
-            "post_processing_logic": "Extract numerical value only"
+            "DESCRIPTION": "Investment Amount",
+            "COORDINATES": [100, 400, 300, 50],
+            "POST_PROCESSING_LOGIC": "Extract numerical value only"
         }
     ]
 }

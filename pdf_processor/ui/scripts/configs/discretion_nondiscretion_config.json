@@ -3,14 +3,14 @@
   "keywords": ["discretionary", "non-discretionary", "discretion", "limited trading authorization"],
   "global_fields": [    
     {      
-      "field_name": "account_number",      
-      "page_number": 1,      
-      "coordinates": [100, 100, 200, 200] 
+      "FIELD_NAME": "account_number",      
+      "PAGE_NUMBER": 1,      
+      "COORDINATES": [100, 100, 200, 200] 
     },    
     {      
-      "field_name": "account_name",      
-      "page_number": 1,      
-      "coordinates": [300, 100, 400, 200]    
+      "FIELD_NAME": "account_name",      
+      "PAGE_NUMBER": 1,      
+      "COORDINATES": [300, 100, 400, 200]    
     }  
   ]
 }

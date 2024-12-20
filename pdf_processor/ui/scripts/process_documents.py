@@ -14,13 +14,15 @@ import pytesseract
 
 from pdf_processor.utils import (get_pdf_images,
                                   remove_gridlines_from_image,
-                                  run_precondition_checks)
+                                  run_precondition_checks, DESCRIPTION, POST_PROCESSING_LOGIC)
+from pdf_processor.ui.scripts.config_constants import PAGE_NUMBER, BOXES, FIELD_NAME, COORDINATES
 from pdf_processor.utils.base_utils import display_image_with_boxes
 
 
 def validate_config(config_path):
     """Validates the configuration file against the schema."""
-    schema_path = os.path.join(os.path.dirname(config_path), "config.json")  # Assuming schema is in the same directory
+    # Get the absolute path to the schema file
+    schema_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "config.json"))
     
     with open(config_path, 'r') as config_file, open(schema_path, 'r') as schema_file:
         try:
@@ -56,11 +58,11 @@ def process_pdf(pdf_path, config, investment_experience_type):
     try:
         # Process 'Investment Experience' field based on type
         if investment_experience_type == "radio":
-            field_name = "Investment Experience"
-            field_config = config.get(field_name)
+            field_name_value = "Investment Experience"
+            field_config = config.get(field_name_value)
             if field_config:
-                page_number = field_config['page']
-                bbox = field_config.get('investment_experience_radio_bbox', field_config['bbox'])  # Fallback to 'bbox' if 'investment_experience_radio_bbox' is not present
+                page_number = field_config[PAGE_NUMBER]
+                bbox = field_config.get('investment_experience_radio_bbox', field_config[BOXES])  # Fallback to BOXES if 'investment_experience_radio_bbox' is not present
                 if 1 <= page_number <= len(images):
                     text = extract_text_from_bbox(images[page_number - 1], bbox)
                     extracted_data[field_name] = text
@@ -71,11 +73,11 @@ def process_pdf(pdf_path, config, investment_experience_type):
                 print(f"Field configuration not found for: {field_name} skipping.")
 
         elif investment_experience_type == "text":
-            field_name = "Investment Experience"
-            field_config = config.get(field_name)
+            field_name_value = "Investment Experience"
+            field_config = config.get(field_name_value)
             if field_config:
-                page_number = field_config['page']
-                bbox = field_config.get('investment_experience_text_bbox', field_config['bbox'])  # Fallback to 'bbox' if 'investment_experience_text_bbox' is not present
+                page_number = field_config[PAGE_NUMBER]
+                bbox = field_config.get('investment_experience_text_bbox', field_config[BOXES])  # Fallback to BOXES if 'investment_experience_text_bbox' is not present
                 if 1 <= page_number <= len(images):
                     text = extract_text_from_bbox(images[page_number - 1], bbox)
                     extracted_data[field_name] = text
@@ -86,23 +88,23 @@ def process_pdf(pdf_path, config, investment_experience_type):
                 print(f"Field configuration not found for: {field_name} skipping.")
 
         # Process other fields in the order defined in config
-        for field_name, field_config_list in config.items():
-            if field_name != "Investment Experience" and field_name != "investment_experience_type":
+        for field_name_value, field_config_list in config.items():
+            if field_name_value != "Investment Experience" and field_name_value != "investment_experience_type":
                 # Check if it's a list of configs (for multiple methods)
                 if isinstance(field_config_list, list):
                     for field_config in field_config_list:
-                        page_number = field_config['page']
-                        bbox = field_config['bbox']
+                        page_number = field_config[PAGE_NUMBER]
+                        bbox = field_config[BOXES]
                         if 1 <= page_number <= len(images):
                             # Remove gridlines before extraction
                             image_without_gridlines = remove_gridlines_from_image(images[page_number - 1])
                             text = extract_text_from_bbox(image_without_gridlines, bbox)
-                            extracted_data[field_name] = text
+                            extracted_data[field_name_value] = text
                         else:
                             print(f"Invalid page number ({page_number}) for field: {field_name} skipping.")
                 else:  # If not a list, treat as a single config
-                    page_number = field_config_list['page']
-                    bbox = field_config_list['bbox']
+                    page_number = field_config_list[PAGE_NUMBER]
+                    bbox = field_config_list[BOXES]
                     if 1 <= page_number <= len(images):
                         text = extract_text_from_bbox(images[page_number - 1], bbox)
                         extracted_data[field_name] = text
@@ -197,7 +199,7 @@ if __name__ == "__main__":
         extracted_data = process_pdf(pdf_path, config, investment_experience_type)
 
         if extracted_data:
-            output_file = os.path.abspath(os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv')) # Sanitize output_file
+            output_file = os.path.abspath(os.path.join(output_dir, os.path.splitext(filename)[0] + '.csv'))
             write_to_csv(extracted_data, output_file)
         else:
             print(f"Failed to process {pdf_path}. Skipping..")

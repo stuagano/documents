@@ -8,37 +8,37 @@
   },
   "key_elements": {
     "delivery_date": {
-      "coordinates": [100, 200, 200, 220],
+      "COORDINATES": [100, 200, 200, 220],
       "regex_pattern": "\\d{2}/\\d{2}/\\d{4}"
     },
     "client_name": {
-      "coordinates": [300, 250, 450, 270],
+      "COORDINATES": [300, 250, 450, 270],
       "text_pattern": "Client Name:",
       "extraction_method": "text_after_label"
     },
     "delivery_method": {
-      "coordinates": [150, 300, 300, 320],
+      "COORDINATES": [150, 300, 300, 320],
       "options": ["Email", "Mail", "In-Person"],
       "extraction_method": "closest_option"
     },
     "confirmation_status": {
-      "coordinates": [400, 400, 500, 420],
+      "COORDINATES": [400, 400, 500, 420],
       "options": ["Confirmed", "Pending", "Rejected"],
       "extraction_method": "text_match"
     },
     "signature": {
-      "coordinates": [550, 600, 700, 680], 
+      "COORDINATES": [550, 600, 700, 680],
       "is_signature": true
     }
   },
   "global_fields": {
     "account_number": {
-      "page_number": 1,
-      "coordinates": [100, 100, 200, 120]
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [100, 100, 200, 120]
     },
     "account_name": {
-      "page_number": 1,
-      "coordinates": [300, 100, 400, 120]
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [300, 100, 400, 120]
     }
   },
   "processing_instructions": {

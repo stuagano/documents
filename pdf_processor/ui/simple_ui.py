@@ -1,4 +1,7 @@
 # FILE:SIMPLE_UI.PY
+import logging
+logger = logging.getLogger(__name__)
+# FILE:SIMPLE_UI.PY
 
 import sys
 import os
@@ -8,9 +11,11 @@ import sqlite3
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, project_root)
 
+from ui_utils import *
+
+
 import json
 import re
-import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
     QFileDialog, QListWidget, QMessageBox, QGraphicsView,
@@ -29,33 +34,33 @@ import tempfile
 import csv
 import pandas as pd
 from PyQt5.QtWidgets import QTableView, QHeaderView
-from PyQt5.QtCore import QAbstractTableModel, Qt
-from PyQt5.QtWidgets import QComboBox
 from skimage.metrics import structural_similarity as ssim
-from pdf_processor.ui.scripts.extract_utils import extract_data_from_pdf_with_config # new import
+from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, create_config_picklists, populate_config_combobox # new import
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtWidgets import QProgressBar, QDialogButtonBox
 from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QRadioButton
 from PyQt5.QtCore import QRectF
-
+from PyQt5.QtCore import QAbstractTableModel, Qt
 from typing import Any  # new import
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
 from pdf_processor.logic.pdf_processor import (  # Importing from pdf_processor.py
     initialize_database, # new import
+    load_pdf,  # Importing load_pdf from pdf_processor.py
     extract_text_with_tesseract, 
     extract_account_number,
-    precondition_check, 
+    precondition_check,
     process_pdf_with_config,
     compare_images, 
     show_image_comparison_dialog,
     extract_data_from_pdf,  # New import
     convert_pdf_to_images
     
-) 
+)
 
 # Set up logging
-logging.basicConfig(filename='pdf_processor.log', level=logging.ERROR, 
+logging.basicConfig(filename='pdf_processor.log', level=logging.INFO,  # Changed to INFO for more details
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # StarCraft 2 themed messages for the progress bar
@@ -83,7 +88,24 @@ DATABASE_SCHEMA = {
     'box_height': int,
 }
 
+# Constants for table and column names
+TABLE_EXTRACTED_DATA = "extracted_data"
+COL_DOCUMENT_NAME = "document_name"
+COL_PAGE_NUMBER = "page_number"
+COL_FIELD_NAME = "field_name"
+COL_FIELD_VALUE = "field_value"
+COL_ACCOUNT_NUMBER = "account_number"
+COL_BOX_X = "box_x"
+COL_BOX_Y = "box_y"
+COL_BOX_WIDTH = "box_width"
+COL_BOX_HEIGHT = "box_height"
 
+
+from pdf_processor.ui.backlog_models import backlog_queue
+
+from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, populate_config_combobox, load_and_display_pdf  # Modified import
+from pdf_processor.database_manager import DatabaseManager
+from utils import image_utils
 class BacklogRecord:
     def __init__(self, document_name, page_number, field_name, pdf_path):
         self.document_name = document_name
@@ -92,122 +114,7 @@ class BacklogRecord:
         self.pdf_path = pdf_path  # Store the path to the PDF file
 
 
-class ImageDisplayWindow(QDialog):
-    def __init__(self, pixmap, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Image Preview")
-        self.resize(pixmap.width(), pixmap.height())
-
-        layout = QVBoxLayout()
-        scroll = QScrollArea()
-        self.graphics_view = QGraphicsView()
-        self.scene = QGraphicsScene()
-        self.graphics_view.setScene(self.scene)
-        self.scene.addPixmap(pixmap)
-        self.graphics_view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)
-        scroll.setWidget(self.graphics_view)
-        layout.addWidget(scroll)
-
-        # Add a button to trigger text extraction
-        self.extract_button = QPushButton("Extract Text", self)
-        self.extract_button.clicked.connect(self.extract_text_from_selected_area)  # Connect to the extract function
-        layout.addWidget(self.extract_button)
-
-        self.setLayout(layout)
-
-        # Add a rectangle for selection
-        self.selection_rect = self.scene.addRect(0, 0, 100, 100, QPen(QColor(255, 0, 0)))  # Initial size and color
-        self.selection_rect.setFlag(QGraphicsPixmapItem.ItemIsMovable, True)  # Make it movable
-        # Add attributes to store the original position and size of the rectangle
-        self.selection_rect.setData(0, self.selection_rect.pos())
-        self.selection_rect.setData(1, self.selection_rect.rect().size())
-
-        self.is_dragging = False  # Flag to track dragging state
-        self.drag_start_pos = None
-
-    def mousePressEvent(self, event):
-        """Handles mouse press events to start dragging."""
-        if event.button() == Qt.LeftButton:
-            item = self.scene.itemAt(event.scenePos(), self.graphics_view.transform())
-            if item == self.selection_rect:
-                self.is_dragging = True
-                self.drag_start_pos = event.scenePos() - self.selection_rect.scenePos()
-                self.selection_rect.setPen(QPen(QColor(0, 255, 0), 2))  # Change color during drag
-                event.accept()
-            else:
-                super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        """Handles mouse move events to update the rectangle position during dragging."""
-        if self.is_dragging:
-            self.selection_rect.setPos(event.scenePos() - self.drag_start_pos)
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        """Handles mouse release events to stop dragging and update the database."""
-        if event.button() == Qt.LeftButton and self.is_dragging:
-            self.is_dragging = False
-            self.selection_rect.setPen(QPen(QColor(255, 0, 0)))  # Reset color
-
-            # Update database with new bounding box coordinates (replace with your implementation)
-            new_x = int(self.selection_rect.rect().x())
-            new_y = int(self.selection_rect.rect().y())
-            new_width = int(self.selection_rect.rect().width())
-            new_height = int(self.selection_rect.rect().height())
-            
-            self.parent().update_bounding_box_in_db(new_x, new_y, new_width, new_height)
-
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
-
-    def extract_text_from_selected_area(self):
-        """Extracts text from the area defined by the selection rectangle."""
-        # Get the current position and size of the rectangle
-        rect = self.selection_rect.rect()
-        x = int(rect.x())
-        y = int(rect.y())
-        width = int(rect.width())
-        height = int(rect.height())
-
-        # Assuming self.parent() is the SimpleUI instance
-        if isinstance(self.parent(), SimpleUI):
-            # Get the original PIL Image from the parent
-            original_image = self.parent().current_image
-
-            if original_image:
-                # Call the extract_text_from_box method with the adjusted coordinates
-                extracted_text = self.parent().extract_text_from_box(original_image, (x, y, width, height))
-                # Do something with the extracted text, like display it
-                QMessageBox.information(self, "Extracted Text", extracted_text)
-            else:
-                QMessageBox.warning(self, "Warning", "No image loaded.")
-        else:
-            QMessageBox.warning(self, "Warning", "Could not access original image.")
-
 class SimpleUI(QWidget):
-
-    def connect_to_database(self, max_retries=3, retry_delay=1):
-        """
-        Establishes a connection to the SQLite database with retry mechanism.
-        """
-        for attempt in range(max_retries):
-            try:
-                conn = sqlite3.connect('extracted_data.db')
-                logging.info(f"Database connection successful (attempt {attempt + 1})")
-                return conn
-            except sqlite3.Error as e:
-                logging.warning(f"Database connection failed (attempt {attempt + 1}): {e}")
-                if attempt < max_retries - 1:
-                    logging.info(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                else:
-                    QMessageBox.critical(self, "Database Connection Error",
-                                        f"Failed to connect to the database after {max_retries} attempts.\n"
-                                        "Please check file permissions and verify the database file location.")
-                    raise  # Re-raise the exception to stop further execution
 
     def __init__(self):
         super().__init__()
@@ -223,18 +130,19 @@ class SimpleUI(QWidget):
         print(f"Scripts directory: {self.scripts_dir}")        
         
         try:
-            # Verify scripts directory exists
+            self.database_manager = DatabaseManager()
+             # Verify scripts directory exists
             if not os.path.exists(self.scripts_dir):
                 QMessageBox.warning(self, 'Warning', f'Scripts directory not found at: {self.scripts_dir}')
                 return
             
             self.initUI()
-        except FileNotFoundError as e:
-            QMessageBox.critical(self, 'Error', f'File not found during initialization: {e}')
-            logging.exception("File not found during initialization: %s", e)
-        except OSError as e:
-            QMessageBox.critical(self, 'Error', f'OS error during initialization: {e}')
-            logging.exception("OS error during initialization: %s", e)
+        except FileNotFoundError:
+            QMessageBox.critical(self, 'Error', f'File not found during initialization')
+            logger.exception("File not found during initialization")
+        except OSError:
+            QMessageBox.critical(self, 'Error', f'OS error during initialization')
+            logger.exception("OS error during initialization")
 
 
     def handle_file_io_error(self, error, file_path, operation="read"):
@@ -244,10 +152,25 @@ class SimpleUI(QWidget):
         QMessageBox.critical(self, "File Error", error_message)
 
     def read_json_file(self, file_path):
-        """Reads a JSON file with error handling."""
+        """
+        Reads a JSON file with error handling and schema extraction.
+        
+        Returns:
+            tuple: A tuple containing the data and a dictionary representing the schema.
+                   The schema dictionary maps field names to their data types.
+        """
         try:
-            with open(file_path, 'r') as f:
-                return json.load(f)
+            with open(file_path, 'r') as file:
+                config_data = json.load(file)
+                
+                schema = {}
+                for field in config_data.get('global_fields', []) + list(config_data.values()):
+                    if isinstance(field, dict) and 'field_name' in field:
+                        data_type = field.get('data_type')
+                        if data_type:
+                            schema[field['field_name']] = data_type
+                
+                return config_data, schema
         except (FileNotFoundError, IOError, json.JSONDecodeError) as e:
             self.handle_file_io_error(e, file_path)
             return None
@@ -268,11 +191,12 @@ class SimpleUI(QWidget):
             return script_module
             
         except Exception as e:
-            logging.exception("Failed to load script module %s: %s", script_path, e)
+            logger.exception("Failed to load script module %s: %s", script_path, e)
             raise ImportError(f"Failed to load script module {script_path}: {str(e)}")
 
     def initUI(self):
         try:
+            self.database_manager = DatabaseManager() # Initialize DatabaseManager
             initialize_database()  # Initialize the database
         except Exception as e:            
             QMessageBox.critical(self, 'Error', f'Database initialization failed: {e}')
@@ -352,7 +276,7 @@ class SimpleUI(QWidget):
                 QMessageBox.warning(self, 'Warning', f'Configs directory created at: {self.config_dir}')
             except OSError as e:
                 QMessageBox.critical(self, 'Error', f'Failed to create configs directory: {e}')
-                logging.exception("Failed to create configs directory: %s", e)
+                logger.exception("Failed to create configs directory: %s", e)
                 return
 
         try:
@@ -364,7 +288,8 @@ class SimpleUI(QWidget):
                 self.config_label = QLabel('Config File:', self)
                 config_layout.addWidget(self.config_label)
                 self.config_combo_box = QComboBox(self) # Assuming QComboBox is imported
-                self.config_combo_box.addItems(self.config_files)
+                from PyQt5.QtWidgets import QComboBox
+                self.config_combo_box = QComboBox(self)
                 config_layout.addWidget(self.config_combo_box)
                 layout.addLayout(config_layout)
 
@@ -376,7 +301,7 @@ class SimpleUI(QWidget):
                     logging.warning("No config files found to select.")
         except Exception as e:  # Handle potential exceptions during file listing
             QMessageBox.critical(self, "Error", f"An error occurred during config file loading: {e}")
-            logging.exception("An error occurred during config file loading: %s", e)       
+            logger.exception("An error occurred during config file loading: %s", e)       
 
             # Image display area (Removed from main window)
 
@@ -406,16 +331,7 @@ class SimpleUI(QWidget):
         # Add config_file attribute
         self.config_file = '' 
         
-        # Picklist for config files
-        self.picklist_layout = QVBoxLayout()
-        self.picklist_label = QLabel("Select Data to Extract:", self)
-        self.picklist_label.setFont(QFont("Arial", 12, QFont.Bold))  # Make label bold
-        self.picklist_layout.addWidget(self.picklist_label)
         
-        self.config_picklists = {}  # Store picklists for each config file
-        self.create_config_picklists()
-        
-        layout.addLayout(self.picklist_layout)
 
         self.add_records_button = QPushButton('Add Records to Database', self)
         self.add_records_button.clicked.connect(self.add_records_to_db)
@@ -438,7 +354,6 @@ class SimpleUI(QWidget):
         """Updates the progress bar message with StarCraft 2 themed messages."""
         # If the progress bar is in indeterminate state (maximum is 0), show rotating messages
         if self.progress_bar.maximum() == 0:
-            self.progress_bar.setFormat(SC2_MESSAGES[self.progress_message_index])
             self.progress_message_index = (self.progress_message_index + 1) % len(SC2_MESSAGES)
         # If the progress bar is in determinate state (maximum > 0), show progress percentage
         else:
@@ -452,17 +367,6 @@ class SimpleUI(QWidget):
         Handles duplicate account numbers by displaying a dialog to the user.
 
         Args:
-            existing_record: The existing record from the database.
-            new_record: The new record being imported.
-        """
-        try:
-            # Get image paths for both records
-            existing_image_path = os.path.join("images", existing_record[1].replace(".pdf", f"_page_1.png"))  # Assuming document name is in the second column (index 1)
-            new_image_path = os.path.join("images", new_record['document_name'].replace(".pdf", f"_page_1.png"))
-            
-            # Load images with error handling
-            existing_image = Image.open(existing_image_path)
-            new_image = Image.open(new_image_path)
 
             # Create dialog
             dialog = QDialog(self)
@@ -503,150 +407,182 @@ class SimpleUI(QWidget):
     def resolve_duplicate(self, dialog, action, existing_record, new_record):
         """Resolves the duplicate account number based on user's choice."""
         dialog.close()
+        account_number = new_record['account_number']
+        document_name = new_record['document_name']
+
         if action == "update":
-            # ... (Logic to update existing record with new data) ...
-            pass
+            # Update logic
+            try:
+                conn = self.connect_to_database()
+                cursor = conn.cursor()
+                
+                # Update existing record with new data (excluding id, document_name, page_number)
+                update_fields = {k: v for k, v in new_record.items() if k not in ('id', 'document_name', 'page_number')}
+                update_query = f"UPDATE completed_records SET {', '.join([f'{k} = ?' for k in update_fields])} WHERE account_number = ?"
+                cursor.execute(update_query, tuple(update_fields.values()) + (account_number,))
+                conn.commit()
+                
+                logging.info(f"Updated record with account number {account_number} from {document_name}")
+            except sqlite3.Error as e:
+                logging.exception(f"Error updating record: {e}")
+                QMessageBox.critical(self, "Error", f"Error updating record: {e}")
+            finally:
+                if conn:
+                    conn.close()
         elif action == "replace":
-            # ... (Logic to replace existing record with new record) ...
-            pass
+            # Replace logic: delete existing record and insert new record
+            try:
+                conn = self.connect_to_database()
+                cursor = conn.cursor()
+                
+                # Delete existing record
+                cursor.execute("DELETE FROM completed_records WHERE account_number = ?", (account_number,))
+                
+                # Insert new record 
+                columns = ', '.join(new_record.keys())
+                placeholders = ', '.join(['?'] * len(new_record))
+                insert_sql = f"INSERT INTO completed_records ({columns}) VALUES ({placeholders})"
+                cursor.execute(insert_sql, tuple(new_record.values()))                
+                conn.commit()
+                logging.info(f"Replaced record with account number {account_number} from {document_name}")
+            except sqlite3.Error as e:
+                logging.exception(f"Error replacing record: {e}")
+                QMessageBox.critical(self, "Error", f"Error replacing record: {e}")
+            finally:
+                if conn:
+                    conn.close()
         elif action == "skip":
             logging.info(f"Skipped record with account number {new_record['account_number']} from {new_record['document_name']}")
 
     def add_records_to_db(self):
-        """ 
-        Populates the 'extracted_data' database table with information
-        from the JSON config files (excluding 'all_data_config.json').
+        """Creates database tables if they don't exist, using the provided schema."""
+        columns = [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "document_name TEXT",
+            "page_number INTEGER",
+            "field_name TEXT",
+        ]
+        for field_name, data_type in schema.items():
+            sql_type = {
+                str: "TEXT",
+                int: "INTEGER",
+                float: "REAL",
+            }.get(data_type, "TEXT")  # Default to TEXT if data type is unknown
+            columns.append(f"{field_name} {sql_type}")
 
-        # Database connection
-        conn = sqlite3.connect('extracted_data.db')
-        cursor = conn.cursor()
-        Populates the 'extracted_data' database table with information
-        from the JSON config files (excluding 'all_data_config.json').
-        """
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS completed_records ({', '.join(columns)})"
+        cursor.execute(create_table_sql)
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS records_to_be_validated ({', '.join(columns)})"
+        cursor.execute(create_table_sql)
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS incomplete_records ({', '.join(columns)})"
+        cursor.execute(create_table_sql)
+
+
+    def _extract_data_from_pdfs(self, config_path):
+        """Extracts data from PDFs using a given config file."""
+        extracted_data = {}
+        for filename in os.listdir(self.input_directory):
+            if filename.endswith(".pdf"):
+                pdf_path = os.path.join(self.input_directory, filename)
+                extracted_data[pdf_path] = extract_data_from_pdf_with_config(pdf_path, config_path)
+        return extracted_data
+
+    def _insert_record(self, cursor, table_name, record_data, config_schema, pdf_path):
+        """Validates and inserts individual records into the database, handling duplicates."""
+        account_number = record_data.get('account_number')
+        if account_number:
+            existing_record = self.database_manager.get_record_by_account_number(account_number)
+            if existing_record:
+                self.handle_duplicate_account_number(existing_record, record_data)
+                cursor = self.database_manager.get_cursor()
+                return False
+
+        validated_data = self.validate_and_convert_data_types(record_data, config_schema)
         try:
-            
-            # Database connection
-            conn = self.connect_to_database()
-            cursor = conn.cursor()        
-            
-            # Initialize tables if they don't exist
-            cursor.execute('''CREATE TABLE IF NOT EXISTS completed_records ( ... )''') # define schema
-            cursor.execute('''CREATE TABLE IF NOT EXISTS records_to_be_validated ( ... )''') # define schema
-            cursor.execute('''CREATE TABLE IF NOT EXISTS incomplete_records ( ... )''') # define schema
+            columns = ', '.join(validated_data.keys())
+            placeholders = ', '.join(['?'] * len(validated_data))
+            insert_sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            cursor.execute(insert_sql, tuple(validated_data.values()))
+            return True
+        except sqlite3.IntegrityError as e:
+            logger.warning(f"Integrity error for record: {e}")
+            return False
 
-            if not self.input_directory or not self.output_directory:
-                QMessageBox.warning(self, 'Warning', 'Please select input and output directories.')
-                return
+    def _update_progress(self, config_index, total_configs, message):
+        """Updates the progress bar."""
+        self.progress_bar.setValue(config_index)
+        self.show_message(message)
 
-            QMessageBox.information(self, "Information", "This operation may take a while. Please be patient.")
-            self.progress_bar.setMinimum(0)
-            self.progress_bar.setMaximum(len(self.config_files) -1 )  # Exclude all_data_config.json
-            self.progress_bar.setValue(0)
-            self.progress_timer.start(1000)  # Update message every 1000ms (1 second)
-            self.show_message("Starting database population...")  # Display a message
-            null_value_records = []  # Initialize the list to store records with null values
-
-            config_index = 0  # Initialize config file index for progress bar
-            try:                
-                for config_file in self.config_files:
-                    if config_file != "all_data_config.json":  # Exclude all_data_config
-                        config_path = os.path.join(self.config_dir, config_file)
-                        
-                        # Process each PDF in the input directory
-                        for filename in os.listdir(self.input_directory):
-                            if filename.endswith(".pdf"):
-                                pdf_path = os.path.join(self.input_directory, filename)
-                                
-                                # Extract data from the PDF using the current config file
-                                extracted_data = extract_data_from_pdf_with_config(pdf_path, config_path)
-
-                                # Iterate through extracted data and insert non-null records into the database
-                                for page_number, page_data in extracted_data.items():                                    
-                                    for field_name, field_value in page_data.items():
-                                        if field_value is not None:  # Only insert if field value is not null
-                                            try:
-                                                # Check for duplicate account number
-                                                account_number = extracted_data.get(1, {}).get('Account Number')  # Assuming account number is on page 1
-                                                if account_number:
-                                                    cursor.execute("SELECT * FROM completed_records WHERE account_number = ?", (account_number,))
-                                                    existing_record = cursor.fetchone()                                                    
-                                                    if existing_record:
-                                                        self.handle_duplicate_account_number(existing_record, {'document_name': os.path.basename(pdf_path), **page_data})
-                                                        break  # Skip to the next PDF if duplicate is handled
-
-                                                # Insert into completed_records                                                    
-                                                cursor.execute(
-                                                    "INSERT INTO completed_records (document_name, page_number, field_name, field_value, account_number, box_x, box_y, box_width, box_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                                                    (os.path.basename(pdf_path), page_number, field_name, field_value, account_number,
-                                                     page_data.get(field_name + '_bbox', [None])[0],  # x
-                                                     page_data.get(field_name + '_bbox', [None, None])[1],  # y
-                                                     page_data.get(field_name + '_bbox', [None, None, None])[2],  # width
-                                                     page_data.get(field_name + '_bbox', [None, None, None, None])[3])  # height
-                                                )                                                                                                
-                                                
-                                        else:
-                                            # Insert into incomplete_records
-                                            cursor.execute(
-                                                "INSERT INTO incomplete_records (document_name, page_number, field_name) VALUES (?, ?, ?)",
-                                                (os.path.basename(pdf_path), page_number, field_name)
-                                            )
-                                            self.backlog_queue.append(BacklogRecord(os.path.basename(pdf_path), page_number, field_name, pdf_path))
-                                            
-                        config_index += 1  # Increment config file index
-                        self.progress_bar.setValue(config_index)  # Update progress bar
-                        self.update_progress_message()  # Update progress message
-                # Move the conn.commit() statement after processing all PDFs
-                conn.commit() 
-
-                                                # ... (Existing insertion code) ...
-                                            except sqlite3.IntegrityError as e:
-                                                # ... (Existing IntegrityError handling) ...
-                                                cursor.execute(
-                                                    "INSERT INTO completed_records (document_name, page_number, field_name, field_value, account_number, box_x, box_y, box_width, box_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                                                    (os.path.basename(pdf_path), page_number, field_name, field_value, account_number,
-                                                     page_data.get(field_name + '_bbox', [None])[0],  # x
-                                                     page_data.get(field_name + '_bbox', [None, None])[1],  # y
-                                                     page_data.get(field_name + '_bbox', [None, None, None])[2],  # width
-                                                     page_data.get(field_name + '_bbox', [None, None, None, None])[3])  # height
-                                                )
-                                            except Exception as e:
-                                                logging.exception("Error during database operation: %s", e)
-                                                QMessageBox.critical(self, 'Error', f'An error occurred during database operation: {e}')
-                                                conn.rollback()  # Rollback changes if an error occurs
-                                                
-                                        else:
-                                            # Insert into incomplete_records
-                                            cursor.execute(
-                                                "INSERT INTO incomplete_records (document_name, page_number, field_name) VALUES (?, ?, ?)",
-                                                (os.path.basename(pdf_path), page_number, field_name)
-                                            )
-                                            self.backlog_queue.append(BacklogRecord(os.path.basename(pdf_path), page_number, field_name, pdf_path))
-
-                    config_index += 1  # Increment config file index
-                    self.progress_bar.setValue(config_index)  # Update progress bar
-                    self.update_progress_message()  # Update progress message
+    def _add_record_to_backlog(self, pdf_path, page_number, field_name):
+        """Adds a record to the backlog queue."""
+        self.backlog_queue.append(BacklogRecord(os.path.basename(pdf_path), page_number, field_name, pdf_path))
 
 
-        # Report null values if any
-        if self.backlog_queue:
-            QMessageBox.information(self, "Information: Null Values Detected", "Some records were skipped due to null values. Please review the backlog queue.")
-            self.update_backlog_list()  # Update the backlog list widget
+    
+        """
+        Populates the database tables with information from the JSON config files.
+        """
+        conn = self.database_manager.get_connection()
+        cursor = self.database_manager.get_cursor()
+
+        if not self.input_directory or not self.output_directory:
+            QMessageBox.warning(self, 'Warning', 'Please select input and output directories.')
+            return
+
+        QMessageBox.information(self, "Information", "This operation may take a while. Please be patient.")
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(len(self.config_files) - 1)  # Exclude all_data_config.json
+        self.progress_bar.setValue(0)
+        self.progress_timer.start(1000)
+        self.show_message("Starting database population...")
+
+        config_index = 0
+        try:
+            for config_file in self.config_files:
+                if config_file != "all_data_config.json":
+                    config_path = os.path.join(self.config_dir, config_file)
+                    _, config_schema = self.read_json_file(config_path)
+                    if config_schema:
+                        self._create_database_tables(cursor, config_schema)
+                    else:
+                        logging.warning(f"No schema found in config file: {config_file}")
+                        continue
+
+                    extracted_data = self._extract_data_from_pdfs(config_path)
+
+                    for pdf_path, pdf_data in extracted_data.items():
+                         for page_number, page_data in pdf_data.items():
+                            for field_name, field_value in page_data.items():
+                                if field_value is not None:
+                                    record_data = {
+                                        'document_name': os.path.basename(pdf_path),
+                                        'page_number': int(page_number),
+                                        'field_name': field_name,
+                                        'field_value': field_value,
+                                         'account_number': pdf_data.get(1, {}).get('Account Number'), #Assuming account number is on page 1
+                                        **{k: v for k, v in page_data.items() if k.endswith('_bbox')}
+                                    }
+                                    if not self._insert_record(cursor, "completed_records", record_data, config_schema, pdf_path):
+                                        conn.rollback()
+                                        self._add_record_to_backlog(pdf_path, page_number, field_name)
+                                else:
+                                    self._add_record_to_backlog(pdf_path, page_number, field_name)
+                    config_index += 1
+                    self._update_progress(config_index, len(self.config_files) - 1, f"Processed config: {config_file}")
 
         except Exception as e:
+            logging.exception("Error during database operation: %s", e)
+            QMessageBox.critical(self, 'Error', f'An error occurred during database operation: {e}')
             conn.rollback()
-            QMessageBox.critical(self, 'Error', f'An error occurred during database population: {e}')
-            logging.exception("Error during database population: %s", e)
         finally:
-            conn.close()
-            cursor.close() 
-
-        self.progress_timer.stop()  # Stop the progress bar timer
-        self.progress_bar.reset()  # Reset the progress bar
-        self.show_message("Database population completed!")  # Display a completion message
-
-        # Report null values if any
+            if conn:                
+                conn.close()
+            self.progress_timer.stop()
+            self.progress_bar.reset()
+            self.show_message("Database population completed!")
         if self.backlog_queue:
-            QMessageBox.information(self, "Information: Null Values Detected", "Some records were skipped due to null values. Please review the backlog queue.")
+             QMessageBox.information(self, "Information: Null Values Detected", "Some records were skipped due to null values. Please review the backlog queue.")
+        self.update_backlog_list()     QMessageBox.information(self, "Information: Null Values Detected", "Some records were skipped due to null values. Please review the backlog queue.")
             self.update_backlog_list()  # Update the backlog list widget
 
     def show_message(self, message):
@@ -659,44 +595,23 @@ class SimpleUI(QWidget):
             self.progress_bar.setMaximum(0)
             self.progress_timer.start(1000)  # Update message every 1000ms (1 second)
             """Displays a message to the user (replace with your preferred method)."""
-            print(message)  # Or use QMessageBox, logging, etc.
-
+            print("Progress started")  # Or use QMessageBox, logging, etc.
+            self.show_message("Progress started")  # Display a message
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error displaying page: {e}")
-            logging.exception(f"Error displaying page: {e}")
-            return
+            logging.exception(f"Error displaying page: {e}")            
 
-    def create_config_picklists(self):
-        try:
-            for config_file in self.config_files:
-                if config_file != "all_data_config.json":  # Exclude all_data_config
-                    config_path = os.path.join(self.config_dir, config_file)
-                    with open(config_path, 'r') as f:
-                        config_data = self.read_json_file(config_path) # Use read_json_file with error handling
-                    
-                    picklist = QListWidget(self)
-                    picklist.addItems(config_data.keys())  # Add field names to picklist
-                    
-                    config_name = config_file.replace("_config.json", "").replace("_", " ").title()  # User-friendly name
-                    self.picklist_layout.addWidget(QLabel(config_name, self))
-                    self.picklist_layout.addWidget(picklist)
-                    self.config_picklists[config_file] = picklist  # Store the picklist
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error displaying page: {e}")
-            logging.exception(f"Error displaying page: {e}")
-            return
 
     def display_dataframe_head(self, df):
-
         """Prints the first 5 rows of the DataFrame to the console."""
         print("DataFrame Head:")
         print(df.head())
-
-    def validate_and_convert_data_types(self, data_dict: dict[str, Any]) -> dict[str, Any]:
+        
+    def validate_and_convert_data_types(self, data_dict: dict[str, Any], schema: dict[str, type]) -> dict[str, Any]:
         """Validates and converts data types to match the database schema."""
         validated_data = {}
         for field_name, field_value in data_dict.items():
-            expected_type = DATABASE_SCHEMA.get(field_name)
+            expected_type = schema.get(field_name) 
             if expected_type is not None:
                 if isinstance(field_value, expected_type):
                     validated_data[field_name] = field_value
@@ -728,12 +643,12 @@ class SimpleUI(QWidget):
                     self.script_list.addItems(scripts)
                 else:
                     QMessageBox.information(self, 'Info', 'No scripts found in the scripts directory.')
-            else:
-                QMessageBox.warning(self, 'Warning', f'Scripts directory not found: {self.scripts_dir}')
-                logging.warning("Scripts directory not found: %s", self.scripts_dir)
+            else:                
+                logger.warning("Scripts directory not found: %s", self.scripts_dir)
+                QMessageBox.warning(self, 'Warning', f'Scripts directory not found: {self.scripts_dir}')                
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'Error loading scripts: {e}')
-            logging.exception("Error loading scripts: %s", e)
+            logger.exception("Error loading scripts: %s", e)
 
     def select_input_directory(self):
 
@@ -757,144 +672,95 @@ class SimpleUI(QWidget):
             QMessageBox.warning(self, 'Warning', 'Please select input and output directories.')
             return
 
-        for filename in os.listdir(self.input_directory):
-            if filename.endswith(".pdf"):
-                pdf_path = os.path.join(self.input_directory, filename)
-                output_file = os.path.join(self.output_directory, filename[:-4] + ".txt")  # Example output file name
+        try:
+            for filename in os.listdir(self.input_directory):
+                if filename.endswith(".pdf"):
+                    pdf_path = os.path.join(self.input_directory, filename)
+                    output_file = os.path.join(self.output_directory, filename[:-4] + ".json")  # Output as JSON
 
-                try:
-                    # ... (Your existing logic to extract data and write to file) ...
-                    # Example with error handling:
-                    extracted_data = extract_data_from_pdf(pdf_path, self.config_file) 
+                    # Read config file
+                    with open(self.config_file, 'r') as config_f:
+                        config_data = json.load(config_f)
+
+                    # Extract data and write to file
+                    extracted_data = extract_data_from_pdf_with_config(pdf_path, self.config_file)
                     with open(output_file, 'w') as f:
                         json.dump(extracted_data, f, indent=4)
 
-                except Exception as e:
-                    QMessageBox.critical(self, 'Error', f'Error processing {filename}: {e}')
-                    logging.exception(f"Error processing {filename}: %s", e)
-
-        QMessageBox.information(self, 'Information', 'File-based extraction completed.')
+        except Exception as e:
+            QMessageBox.critical(self, 'Error', f'Error during file-based extraction: {e}')
+            logger.exception(f"Error during file-based extraction: %s", e)
+            return
 
     def process_pdf(self):
-
-        def compare_images(image1, image2, threshold=0.95):
-            """Compares two images using SSIM and returns True if they are similar."""
-            image1 = image1.convert("L")  # Convert to grayscale
-            image2 = image2.convert("L")
-            ssim_score = ssim(image1, image2)
-            return ssim_score >= threshold
-        
-        def show_image_comparison_dialog(image1, image2):
-
-            """Displays a dialog showing both images for user comparison."""
-            dialog = QDialog(self) # Assuming QDialog is imported
-            dialog.setWindowTitle("Image Comparison") 
-            layout = QHBoxLayout() 
-
-            # Convert PIL Images to QPixmap and add them to the layout
-            pixmap1 = self.pil2pixmap(image1) 
-            pixmap2 = self.pil2pixmap(image2)
-            label1 = QLabel() # Assuming QLabel is imported
-            label1.setPixmap(pixmap1)
-            label2 = QLabel()
-            label2.setPixmap(pixmap2)
-            layout.addWidget(label1)
-            layout.addWidget(label2)
-            dialog.setLayout(layout)
-
-            # Add buttons for user confirmation
-            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel) # Assuming QDialogButtonBox is imported
-            button_box.accepted.connect(dialog.accept)
-            button_box.rejected.connect(dialog.reject)
-            layout.addWidget(button_box)
-            
-            # Show the dialog and return the result
-            result = dialog.exec_()
-            return result == QDialog.Accepted  # True if OK is pressed, False otherwise
-
-        if not self.input_directory or not self.output_directory or not self.pdf_file or not self.config_file:
-            QMessageBox.warning(
-                self,
-                'Warning',
-                'Please select input directory, output directory, PDF file, and config file.'
-            )
-            return
-
-        selected_script_item = self.script_list.currentItem()
-
-        # Determine extraction type
-        if self.file_based_radio.isChecked():
-            self.extract_to_files()
-            return
-        # Otherwise, proceed with database-based extraction as before
-
-        if not selected_script_item:
-            QMessageBox.warning(self, 'Warning', 'Please select a script to run.')
-            return
-
-        selected_script = selected_script_item.text()
-        script_path = os.path.join(self.scripts_dir, selected_script)
-
+        """Initiates the PDF processing workflow."""
         try:
+            self.start_progress()  # Start progress bar
+            self.validate_and_run_extraction()
+        except ValueError as e:
+            QMessageBox.warning(self, 'Warning', str(e))
+            logging.warning(str(e))
+        except Exception as e:
+            QMessageBox.critical(self, 'Error', f'An error occurred during PDF processing: {e}')
+            logging.exception(f'An error occurred during PDF processing: {e}')
+        finally:
+            self.progress_timer.stop()  # Stop progress bar timer
+            self.progress_bar.reset()  # Reset progress bar
+
+    def validate_and_run_extraction(self):
+        """Validates input and runs either extraction or database import."""
+        if not self.input_directory or not self.output_directory or not self.pdf_file or not self.config_file:
+            raise ValueError("Please select input directory, output directory, PDF file, and config file.")
+
+        if self.config_file.endswith("all_data_config.json"):
+            self.add_records_to_db()  # Call add_records_to_db directly
+        else:
+            self._run_extraction()  # Run the normal extraction process
+
+    def _run_precondition_check(self, images):
+        """Runs the precondition check and handles the results."""
+        results = precondition_check(images)
+        if not all(results.values()):  # Check if any precondition failed
+            raise ValueError("Precondition check failed. Please review the document.")
+        return results
+
+    def _extract_data(self):
+        """Extracts data from the PDF using the selected config file."""
+        data = extract_data_from_pdf(self.pdf_file, self.config_file)
+        return data
+
+    def _handle_image_comparison(self):
+        """Handles image comparison logic."""
+        if self.previous_image_path:
+            previous_image = Image.open(self.previous_image_path)
+            if not compare_images(self.current_image, previous_image):
+                raise ValueError("Image comparison failed. Extraction cancelled.")
+        return True  # Indicate continuation
+
+    def _run_extraction(self):
+        """Performs the extraction process."""
+        try:
+            selected_script_item = self.script_list.currentItem()
+            if not selected_script_item:
+                raise ValueError('Please select a script to run.')
+
+            selected_script = selected_script_item.text()
+            script_path = os.path.join(self.scripts_dir, selected_script)
+
             # Load the selected script module
-            script_module = self.load_script_module(script_path)
-            print(f"Loaded script: {selected_script}")
+            self.load_script_module(script_path)
 
-            # Call the main function of the script module, passing input and output directories
-            # if hasattr(script_module, 'main'):
-            #     self.run_script_with_config(script_path)
-            # else:
-            #     QMessageBox.warning(self, 'Warning', f"The selected script '{selected_script}' does not have a 'main' function.")
-            #     return
-            
-            # Convert PDF to images for precondition checking
-            
-            images = convert_pdf_to_images(self.pdf_file) # moved to pdf_processor.py
-            self.current_image = images[0] if images else None  # Store the first image, handle empty list
+            images = convert_pdf_to_images(self.pdf_file)
+            self.current_image = images[0] if images else None
 
-            # Image comparison before extraction
-            if self.previous_image_path:
-                    try:
-                        previous_image = Image.open(self.previous_image_path)
-                        if not compare_images(self.current_image, previous_image):
-                            if not show_image_comparison_dialog(self.current_image, previous_image):
-                                QMessageBox.information(self, "Information", "Extraction cancelled.")
-                                return  # Stop the process if the user cancels
-                    except FileNotFoundError:
-                        QMessageBox.warning(self, "Warning", "Previous image file not found.")
-                    except Exception as e:
-                        QMessageBox.warning(self, "Warning", f"Error comparing images: {e}")
+            self._handle_image_comparison()
+            self._run_precondition_check(images)
+            extracted_data = self._extract_data()  # Store the extracted data
 
-            # Store current image for next comparison
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-                try:
-                    self.current_image.save(temp_file.name)
-                except AttributeError as e:  # Handle case where current_image is None
-                    logging.warning(f"Could not save current image: {e}")
-                self.previous_image_path = temp_file.name
+            # ... (Further processing of extracted_data if needed) ...
 
-            # Run the precondition checker before processing
-            precondition_results = precondition_check(images)
-            self.display_dataframe_head(pd.DataFrame(precondition_results))            
-            extracted_data = extract_data_from_pdf(self.pdf_file, self.config_file)
-            print(extracted_data)            
-
-            # If all_data_config.json is selected, show progress bar
-            if self.config_file.endswith("all_data_config.json"):
-                QMessageBox.warning(self, "Warning", "This operation may take a while. Please be patient.")
-                self.start_progress()  # Start progress bar with rotating messages
-                
-                # ... your long-running database import operation here ...
-                
-                self.progress_timer.stop()  # Stop the progress bar timer
-                self.progress_bar.reset()  # Reset the progress bar
-                QMessageBox.information(self, "Information", "Database import completed!")
-
-            #account_number = precondition_results.get("Account Number", "Not Found")
-            #account_name = precondition_results.get("Account Name", "Not Found")            
         except ImportError as e:
-            QMessageBox.critical(self, 'Error', f'Import error: {e}')
-            logging.exception("Import error: %s", e)
+            raise ImportError(f'Import error: {e}') from e  # Chain the exception
 
     def display_image_with_boxes(self, image, bounding_boxes):
         """
@@ -908,7 +774,7 @@ class SimpleUI(QWidget):
         draw = ImageDraw.Draw(image)
         for section, box in bounding_boxes.items():
             x, y, width, height = box
-            draw.rectangle([(x, y), (x + width, y + height)], outline="red", width=2)
+            draw.rectangle([(x, y, x + width, y + height)], outline="red", width=2)
             draw.text((x, y - 15), section, fill="red")  # Label the sections
 
         # Convert PIL image to QPixmap
@@ -1013,20 +879,20 @@ class SimpleUI(QWidget):
 
     def view_extracted_data(self):
         try:
-            # Connect to the database
-            conn = self.connect_to_database()  # Use the connection function with retry
-            cursor = conn.cursor()
+            # Use DatabaseManager to fetch data
+            db_manager = DatabaseManager()
+            data = db_manager.get_processed_documents()
 
-            # Fetch all data from the extracted_data table
-            cursor.execute("SELECT * FROM completed_records")  # Changed to completed_records
-            data = cursor.fetchall()
-
-            # Convert the data to a pandas DataFrame
-            df = pd.DataFrame(data, columns=[description[0] for description in cursor.description])
+            if data:
+                # Convert the data to a pandas DataFrame
+                df = pd.DataFrame(data, columns=[description[0] for description in db_manager.get_cursor().description])
+            else:
+                QMessageBox.information(self, 'Info', 'No extracted data found in the database.')
+                return
 
             # Create a QTableView to display the DataFrame
             table_view = QTableView()
-            model = PandasModel(df)  # Assuming PandasModel is defined (see below)
+            model = PandasModel(df) 
             table_view.setModel(model)
             
             # Connect cell click to image display
@@ -1047,7 +913,6 @@ class SimpleUI(QWidget):
 
         except Exception as e:
             QMessageBox.critical(self, 'Error', f'An error occurred while viewing data: {e}')
-            logging.exception("Error viewing extracted data: %s", e)
         finally:
             conn.close()  # Close the database connection
 
@@ -1060,8 +925,7 @@ class SimpleUI(QWidget):
         
         try:
             # Connect to the database
-            conn = self.connect_to_database()  # Use the connection function with retry
-            cursor = conn.cursor()
+            cursor = self.database_manager.get_cursor()
 
             # Retrieve bounding box and image path
             cursor.execute("SELECT box_x, box_y, box_width, box_height, document_name FROM completed_records WHERE document_name = ? AND page_number = ? AND field_name = ?", (document_name, page_number, field_name))
@@ -1082,80 +946,97 @@ class SimpleUI(QWidget):
         except (TypeError, ValueError) as e:
             QMessageBox.warning(self, "Warning", f"Invalid data type retrieved from database: {e}")
         finally:
-            conn.close()
+            self.database_manager.close_connection()
 
     def move_record_to_completed(self, document_name, page_number, field_name):
         """Moves a record from records_to_be_validated to completed_records."""
+        
         try:
-            conn = self.connect_to_database()  # Use the connection function with retry
-            cursor = conn.cursor()
+            conn = self.database_manager.get_connection()
+            cursor = self.database_manager.get_cursor()
 
             # Get the record from records_to_be_validated
-            cursor.execute("SELECT * FROM records_to_be_validated WHERE document_name = ? AND page_number = ? AND field_name = ?", (document_name, page_number, field_name))
+            cursor.execute("SELECT * FROM records_to_be_validated WHERE document_name=? AND page_number=? AND field_name=?", (document_name, page_number, field_name))
             record = cursor.fetchone()
 
             if record:
                 # Insert the record into completed_records
-                cursor.execute("INSERT INTO completed_records (document_name, page_number, field_name, field_value, account_number, box_x, box_y, box_width, box_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", record[1:])  # Exclude the primary key from records_to_be_validated
+                cursor.execute("INSERT INTO completed_records (document_name, page_number, field_name, field_value, account_number, box_x, box_y, box_width, box_height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", record)
 
                 # Delete the record from records_to_be_validated
-                cursor.execute("DELETE FROM records_to_be_validated WHERE document_name = ? AND page_number = ? AND field_name = ?", (document_name, page_number, field_name))
+                cursor.execute("DELETE FROM records_to_be_validated WHERE document_name=? AND page_number=? AND field_name=?", (document_name, page_number, field_name))
 
-                conn.commit()
+                conn.commit()  # Commit changes
                 QMessageBox.information(self, "Information", "Record moved to completed records.")
-
-                # Update the UI (remove the record from the records_to_be_validated display)
-                # ... (Implementation to remove the record from the UI) ...
-
             else:
                 QMessageBox.warning(self, "Warning", "Record not found in records_to_be_validated.")
 
         except sqlite3.Error as e:
-            conn.rollback()
-            QMessageBox.critical(self, "Error", f"Database error: {e}")
+            logger.exception(f"Database error moving record: {e}")  # Log the exception
+            QMessageBox.critical(self, "Error", f"Database error moving record: {e}")
+            if conn:
+                conn.rollback()
         finally:
-            conn.close()
+            if cursor:
+                cursor.close()            
+            self.database_manager.close_connection()
 
-    def update_bounding_box_in_db(self, new_x, new_y, new_width, new_height):
-        """Updates the bounding box coordinates in the database."""
+    def update_bounding_box_in_db(self, document_name, page_number, field_name, new_x, new_y, new_width, new_height):        
         try:
-            # Get the document name, page number, and field name from the current selection
-            # (You'll need to implement this based on how your selection is tracked)
-            # For example:
-            # document_name = self.current_selection['document_name']
-            # page_number = self.current_selection['page_number']
-            # field_name = self.current_selection['field_name']
-
-            # Connect to the database
-            conn = self.connect_to_database()  # Use the connection function with retry
-            cursor = conn.cursor()
-
-            # Update the bounding box coordinates in the database
+            conn = self.database_manager.get_connection()
+            cursor = self.database_manager.get_cursor()
+            
             cursor.execute(
-                "UPDATE records_to_be_validated SET box_x = ?, box_y = ?, box_width = ?, box_height = ? WHERE document_name = ? AND page_number = ? AND field_name = ?",
-                (new_x, new_y, new_width, new_height, document_name, page_number, field_name)  # Replace with actual values
+                "UPDATE records_to_be_validated "
+                "SET box_x = ?, box_y = ?, box_width = ?, box_height = ? "
+                "WHERE document_name = ? AND page_number = ? AND field_name = ?",
+                (new_x, new_y, new_width, new_height, document_name, page_number, field_name)
             )
-            conn.commit()
+            
+            conn.commit()            
+            QMessageBox.information(self, "Information", "Bounding box updated successfully.")
 
-            QMessageBox.information(self, "Information", "Bounding box coordinates updated successfully.")
-
-            # Move the record to completed_records after successful update
-            self.move_record_to_completed(document_name, page_number, field_name) 
-
-            # Refresh the image snippet (optional)
-            # self.show_image_snippet()
-
+            # Move the record to the 'completed_records' table
+            self.move_record_to_completed(document_name, page_number, field_name)
+            
         except sqlite3.Error as e:
-            QMessageBox.critical(self, "Error", f"Database error: {e}")
-        finally:
-            conn.close()
+            logger.error(f"Database error updating bounding box: {e}")
+            QMessageBox.critical(self, "Error", f"Database error updating bounding box: {e}")
+            conn.rollback()  # Rollback changes if an error occurs
+        finally:            
+            self.database_manager.close_connection()
 
     def update_backlog_list(self):
         """Updates the backlog list widget with items from the backlog queue."""
         self.backlog_list.clear()
-        for record in self.backlog_queue:
-            item_text = f"{record.document_name} - Page {record.page_number} - Field: {record.field_name}"
+        for selected_record in self.backlog_queue:
+            images = convert_pdf_to_images(selected_record.pdf_path)
             self.backlog_list.addItem(item_text)
+
+    def update_record_value(self, document_name, page_number, field_name, new_value):
+        """Updates the field_value in the records_to_be_validated table."""
+        conn = None
+        cursor = None
+        try:
+            conn = self.connect_to_database()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE records_to_be_validated SET field_value = ? "
+                "WHERE document_name = ? AND page_number = ? AND field_name = ?",
+                (new_value, document_name, page_number, field_name)
+            )
+            conn.commit()
+            logger.info(f"Updated record: {document_name}, Page: {page_number}, Field: {field_name}, New Value: {new_value}")
+        except sqlite3.Error as e:
+            logger.exception(f"Database error updating record value: {e}")
+            QMessageBox.critical(self, "Error", f"Database error updating record value: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     def review_backlog(self):
         """Handles the 'Review Backlog' button click."""
@@ -1163,50 +1044,32 @@ class SimpleUI(QWidget):
             QMessageBox.information(self, "Information", "Backlog queue is empty.")
             return
 
-        selected_item = self.backlog_list.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "Warning", "Please select a record from the backlog queue.")
-            return
-
-        # Get the BacklogRecord object associated with the selected item
-        selected_record_index = self.backlog_list.currentRow()
-        selected_record = self.backlog_queue[selected_record_index]
-
-        # ... (Logic to display the PDF page, highlight the field, and allow correction) ...
-        # Example:
-        # Display the PDF page using your existing image display logic
-        # Highlight the bounding box of the problematic field
-        # Provide a way for the user to enter the correct value (e.g., a text input field)
-
-        # Here's a placeholder for how you might display and highlight the page:
         try:
-            images = convert_pdf_to_images(selected_record.pdf_path)  # Assuming your function to convert PDF to images
-            page_image = images[selected_record.page_number - 1]  # Adjust for zero-based indexing
-            
-            # Create a dictionary with the bounding box information of the selected field to display
-            try:
-                config_file = os.path.join(self.config_dir, self.config_files[0])
-            except IndexError:
-                config_file = None  # Handle case where no config files are found
-            extracted_data = extract_data_from_pdf(selected_record.pdf_path, config_file)
-            
-            bounding_box = {selected_record.field_name: extracted_data[selected_record.page_number][selected_record.field_name + '_bbox']}
-            
-            self.display_image_with_boxes(page_image, bounding_box)
-
+            for record in self.backlog_queue[:]:  # Iterate over a copy of the backlog_queue
+                new_value, ok = QInputDialog.getText(
+                    self, "Backlog Review", f"Enter new value for {record.field_name} (or press Enter to skip): "
+                )
+                if ok and new_value:
+                    self.update_record_value(record.document_name, record.page_number, record.field_name, new_value)
+                    self.backlog_queue.remove(record)  # Remove from original backlog_queue
+                    self.update_backlog_list()
+                    print('Record updated successfully.')  # Confirmation message
+                    QMessageBox.information(self, "Information", "Record updated successfully.")  # Confirmation message
+                else:
+                    QMessageBox.information(self, "Information", "Skipping record...")
         except Exception as e:
-            print(f"Error displaying page: {e}")
-            QMessageBox.critical(self, "Error", f"Error displaying page: {e}")
-            return
+            QMessageBox.critical(self, "Error", f"An error occurred while reviewing the backlog: {e}")
+            logging.exception(f"Error reviewing backlog: {e}")  
 
 
-        # ... (Logic to update the database with the corrected value) ...
-        # After correction, remove the record from the backlog:
-        # self.backlog_queue.pop(selected_record_index)
-        # self.update_backlog_list()
-
-        QMessageBox.information(self, "Information", "Backlog review functionality is under development.")
-
+    def update_document_status(self, document_name, status):
+        """Updates the status of a document in the database using DatabaseManager."""
+        try:            
+            self.database_manager.update_document_status(document_name, status)
+            logging.info(f"Updated status of document '{document_name}' to '{status}'")
+        except Exception as e:
+            logging.error(f"Error updating document status: {e}")
+            QMessageBox.critical(self, "Error", f"Error updating document status: {e}")
 
 
 if __name__ == '__main__':
@@ -1214,50 +1077,3 @@ if __name__ == '__main__':
     ex = SimpleUI()
     ex.show()
     sys.exit(app.exec_())
-
-conn = SimpleUI().connect_to_database()  # Use the connection function with retry
-cursor = conn.cursor()
-
-# Create the table with Account Number as primary key and File Name as secondary key
-cursor.execute(''' 
-CREATE TABLE IF NOT EXISTS extracted_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    document_name TEXT,
-    page_number INTEGER,  # Add page number column
-    field_name TEXT,    
-    field_value TEXT,    
-    account_number TEXT,
-    box_x INTEGER,  # Add bounding box coordinates
-    box_y INTEGER,
-    box_width INTEGER,
-    box_height INTEGER,
-    UNIQUE (account_number, document_name)  # Account Number as primary, File Name as secondary
-)
-''')
-conn.commit()
-
-
-
-
-# Define a PandasModel to display the DataFrame in QTableView
-class PandasModel(QAbstractTableModel):
-    def __init__(self, data, parent=None):
-        QAbstractTableModel.__init__(self, parent)
-        self._data = data
-
-    def rowCount(self, parent=None):
-        return self._data.shape[0]
-
-    def columnCount(self, parent=None):
-        return self._data.shape[1]
-
-    def data(self, index, role=Qt.DisplayRole):
-        if index.isValid():
-            if role == Qt.DisplayRole:
-                return str(self._data.iloc[index.row(), index.column()])
-        return None
-
-    def headerData(self, col, orientation, role):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self._data.columns[col]
-        return None

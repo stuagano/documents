@@ -2,9 +2,9 @@
   "page_number": 9,
   "boxes": [
     {
-      "description": "Name(s)",
-      "coordinates": [200, 300, 400, 50],
-      "post_processing_logic": "Extract the text to the right of 'Name(s):'"
+      "DESCRIPTION": "Name(s)",
+      "COORDINATES": [200, 300, 400, 50],
+      "POST_PROCESSING_LOGIC": "Extract the text to the right of 'Name(s):'"
     }
   ]
 }

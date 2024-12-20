@@ -1,32 +1,32 @@
 {
-  "page_number": 12,
-  "global_fields": [
+  "PAGE_NUMBER": 12,
+  "GLOBAL_FIELDS": [
     {
-      "field_name": "account_number",
-      "page_number": 1,
-      "coordinates": [100, 100, 200, 50] 
+      "FIELD_NAME": "account_number",
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [100, 100, 200, 50] 
     },
     {
-      "field_name": "account_name",
-      "page_number": 1,
-      "coordinates": [100, 150, 400, 50] 
+      "FIELD_NAME": "account_name",
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [100, 150, 400, 50] 
     }
   ],
-  "boxes": [
+  "BOXES": [
     {
-      "description": "Advisor Signature",
-      "coordinates": [300, 100, 200, 100],
-      "post_processing_logic": "Check if a signature is present"
+      "DESCRIPTION": "Advisor Signature",
+      "COORDINATES": [300, 100, 200, 100],
+      "POST_PROCESSING_LOGIC": "Check if a signature is present"
     },
     {
-      "description": "Client Name",
-      "coordinates": [100, 300, 800, 100],
-      "post_processing_logic": "Extract the client name"
+      "DESCRIPTION": "Client Name",
+      "COORDINATES": [100, 300, 800, 100],
+      "POST_PROCESSING_LOGIC": "Extract the client name"
     },
     {
-      "description": "Client Signature",
-      "coordinates": [100, 450, 800, 100],
-      "post_processing_logic": "Check if a signature is present"
+      "DESCRIPTION": "Client Signature",
+      "COORDINATES": [100, 450, 800, 100],
+      "POST_PROCESSING_LOGIC": "Check if a signature is present"
     }
   ]
 }

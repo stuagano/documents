@@ -2,14 +2,14 @@
   "document_name": "Investment Policy Statement",
   "global_fields": [
     {
-      "field_name": "account_number",
-      "page_number": 1,
-      "bbox": [100, 100, 200, 50] 
+      "FIELD_NAME": "account_number",
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [100, 100, 200, 50] 
     },
     {
-      "field_name": "account_name",
-      "page_number": 1,
-      "bbox": [300, 100, 400, 50]
+      "FIELD_NAME": "account_name",
+      "PAGE_NUMBER": 1,
+      "COORDINATES": [300, 100, 400, 50]
     }
   ],
   "page_number": 7,
@@ -18,57 +18,57 @@
   "investment_experience_text_bbox": [500, 200, 300, 100], // Example coordinates
   "extraction_fields": [
     {
-      "field_name": "Investment Objectives",
+      "FIELD_NAME": "Investment Objectives",
       "extraction_method": "regex",
       "regex_pattern": "(?i)(investment\\s+objectives|objectives|goals|investment\\s+strategy).*",
       "post_processing": "clean_text"
     },
     {
-      "field_name": "Asset Allocation",
+      "FIELD_NAME": "Asset Allocation",
       "extraction_method": "keyword_search",
       "keywords": ["asset allocation", "portfolio allocation", "allocation strategy", "asset classes"],
       "post_processing": "extract_percentage"
     },
     {
-      "field_name": "Risk Tolerance",
+      "FIELD_NAME": "Risk Tolerance",
       "extraction_method": "keyword_search",
       "keywords": ["risk tolerance", "risk profile", "risk capacity", "risk appetite"],
       "post_processing": "clean_text"
     },
     {
-      "field_name": "Time Horizon",
+      "FIELD_NAME": "Time Horizon",
       "extraction_method": "keyword_search",
       "keywords": ["time horizon", "investment timeframe", "long-term goals", "short-term goals"],
       "post_processing": "clean_text"
     },    
     {
-      "field_name": "Benchmark",
+      "FIELD_NAME": "Benchmark",
       "extraction_method": "keyword_search",
       "keywords": ["benchmark", "performance benchmark", "index"],
       "post_processing": "clean_text"
     },
     {
-      "field_name": "Rebalancing Policy",
+      "FIELD_NAME": "Rebalancing Policy",
       "extraction_method": "keyword_search",
       "keywords": ["rebalancing policy", "rebalancing frequency", "portfolio rebalancing"],
       "post_processing": "clean_text"
     },
     {
-      "field_name": "Tax Considerations",
+      "FIELD_NAME": "Tax Considerations",
       "extraction_method": "keyword_search",
       "keywords": ["tax considerations", "tax efficiency", "tax implications"],
       "post_processing": "clean_text" 
     },
     {
-      "field_name": "Additional Notes",
+      "FIELD_NAME": "Additional Notes",
       "extraction_method": "table_extraction",  
       "table_coordinates": [
         {"x1":10, "y1": 100, "x2":200, "y2": 200},
         {"x1":10, "y1": 300, "x2":200, "y2": 400}
       ],
       "post_processing": "clean_text"
-    }
-  ]
+    } 
+  ],
   "bounding_boxes": [
     [100, 150, 400, 200],
     [600, 150, 400, 200],

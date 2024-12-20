@@ -1,16 +1,16 @@
 {
-  "page_number": 7,
+  "PAGE_NUMBER": 7,
   "boxes": [],
-  "globals": [    
+  "global_fields": [    
       {
-          "field_name": "account_number",
-          "page_number": 1,
-          "bbox": [100, 100, 200, 150]
+          "FIELD_NAME": "account_number",
+          "PAGE_NUMBER": 1,
+          "coordinates": [100, 100, 200, 150]
       },
       {
-          "field_name": "account_name",
-          "page_number": 1,
-          "bbox": [300, 100, 400, 150]
+          "FIELD_NAME": "account_name",
+          "PAGE_NUMBER": 1,
+          "coordinates": [300, 100, 400, 150]
       }
   ]  
 }
