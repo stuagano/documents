@@ -18,42 +18,35 @@ import json
 import re
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QFileDialog, QListWidget, QMessageBox, QGraphicsView,
-    QGraphicsScene, QGraphicsPixmapItem, QHBoxLayout, QDialog, QScrollArea
+    QFileDialog, QListWidget, QMessageBox, QHBoxLayout, QDialog, QScrollArea
 )
-from PyQt5.QtGui import QPixmap, QImage, QPen, QColor, QFont
+from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 from pdf2image import convert_from_path
 from PIL import Image, ImageDraw
 import pytesseract
 import importlib.util
-import subprocess
+
 import time
 import logging
-import tempfile
-import csv
+
+
 import pandas as pd
 from PyQt5.QtWidgets import QTableView, QHeaderView
-from skimage.metrics import structural_similarity as ssim
-from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, create_config_picklists, populate_config_combobox # new import
+from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, populate_config_combobox # new import
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QModelIndex
-from PyQt5.QtWidgets import QProgressBar, QDialogButtonBox
+from PyQt5.QtWidgets import QProgressBar
 from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtWidgets import QRadioButton
-from PyQt5.QtCore import QRectF
-from PyQt5.QtCore import QAbstractTableModel, Qt
+
+from PyQt5.QtCore import QAbstractTableModel
 from typing import Any  # new import
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
+
 from pdf_processor.logic.pdf_processor import (  # Importing from pdf_processor.py
     initialize_database, # new import
-    load_pdf,  # Importing load_pdf from pdf_processor.py
-    extract_text_with_tesseract, 
-    extract_account_number,
     precondition_check,
-    process_pdf_with_config,
     compare_images, 
-    show_image_comparison_dialog,
     extract_data_from_pdf,  # New import
     convert_pdf_to_images
     
@@ -413,14 +406,14 @@ class SimpleUI(QWidget):
         if action == "update":
             # Update logic
             try:
-                conn = self.connect_to_database()
-                cursor = conn.cursor()
+                conn = self.database_manager.get_connection()
+                cursor = self.database_manager.get_cursor()
                 
                 # Update existing record with new data (excluding id, document_name, page_number)
                 update_fields = {k: v for k, v in new_record.items() if k not in ('id', 'document_name', 'page_number')}
                 update_query = f"UPDATE completed_records SET {', '.join([f'{k} = ?' for k in update_fields])} WHERE account_number = ?"
                 cursor.execute(update_query, tuple(update_fields.values()) + (account_number,))
-                conn.commit()
+                self.database_manager.get_connection().commit()
                 
                 logging.info(f"Updated record with account number {account_number} from {document_name}")
             except sqlite3.Error as e:
@@ -432,8 +425,8 @@ class SimpleUI(QWidget):
         elif action == "replace":
             # Replace logic: delete existing record and insert new record
             try:
-                conn = self.connect_to_database()
-                cursor = conn.cursor()
+                conn = self.database_manager.get_connection()
+                cursor = self.database_manager.get_cursor()
                 
                 # Delete existing record
                 cursor.execute("DELETE FROM completed_records WHERE account_number = ?", (account_number,))
@@ -443,7 +436,7 @@ class SimpleUI(QWidget):
                 placeholders = ', '.join(['?'] * len(new_record))
                 insert_sql = f"INSERT INTO completed_records ({columns}) VALUES ({placeholders})"
                 cursor.execute(insert_sql, tuple(new_record.values()))                
-                conn.commit()
+                self.database_manager.get_connection().commit()
                 logging.info(f"Replaced record with account number {account_number} from {document_name}")
             except sqlite3.Error as e:
                 logging.exception(f"Error replacing record: {e}")
@@ -1074,6 +1067,6 @@ class SimpleUI(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = SimpleUI()
-    ex.show()
+    app = SimpleUI()
+    app.show()
     sys.exit(app.exec_())
