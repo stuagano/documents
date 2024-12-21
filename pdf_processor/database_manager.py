@@ -24,6 +24,12 @@ class DatabaseManager:
                 else:
                     raise
 
+    def get_connection(self):
+        return self.connection
+
+    def get_cursor(self):
+        return self.connection.cursor()
+
     def get_database_schema(self) -> Dict:
         try:
             with open(self.schema_file_path, "r") as schema_file:
