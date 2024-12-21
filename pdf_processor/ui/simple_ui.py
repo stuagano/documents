@@ -449,26 +449,12 @@ class SimpleUI(QWidget):
 
     def add_records_to_db(self):
         """Creates database tables if they don't exist, using the provided schema."""
-        columns = [
-            "id INTEGER PRIMARY KEY AUTOINCREMENT",
-            "document_name TEXT",
-            "page_number INTEGER",
-            "field_name TEXT",
-        ]
-        for field_name, data_type in schema.items():
-            sql_type = {
-                str: "TEXT",
-                int: "INTEGER",
-                float: "REAL",
-            }.get(data_type, "TEXT")  # Default to TEXT if data type is unknown
-            columns.append(f"{field_name} {sql_type}")
-
-        create_table_sql = f"CREATE TABLE IF NOT EXISTS completed_records ({', '.join(columns)})"
-        cursor.execute(create_table_sql)
-        create_table_sql = f"CREATE TABLE IF NOT EXISTS records_to_be_validated ({', '.join(columns)})"
-        cursor.execute(create_table_sql)
-        create_table_sql = f"CREATE TABLE IF NOT EXISTS incomplete_records ({', '.join(columns)})"
-        cursor.execute(create_table_sql)
+        try:
+            self.database_manager.create_tables()  # Use DatabaseManager to create tables
+            logging.info("Database tables created successfully.")
+        except Exception as e:
+            logging.exception("Error creating database tables: %s", e)
+            QMessageBox.critical(self, 'Error', f'An error occurred during table creation: {e}')
 
 
     def _extract_data_from_pdfs(self, config_path):
@@ -1008,28 +994,15 @@ class SimpleUI(QWidget):
 
     def update_record_value(self, document_name, page_number, field_name, new_value):
         """Updates the field_value in the records_to_be_validated table."""
-        conn = None
-        cursor = None
-        try:
-            conn = self.connect_to_database()
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE records_to_be_validated SET field_value = ? "
-                "WHERE document_name = ? AND page_number = ? AND field_name = ?",
-                (new_value, document_name, page_number, field_name)
-            )
-            conn.commit()
-            logger.info(f"Updated record: {document_name}, Page: {page_number}, Field: {field_name}, New Value: {new_value}")
-        except sqlite3.Error as e:
-            logger.exception(f"Database error updating record value: {e}")
-            QMessageBox.critical(self, "Error", f"Database error updating record value: {e}")
-            if conn:
-                conn.rollback()
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+        try:            
+            # Use the database_manager to update the record
+            self.database_manager.update_record("records_to_be_validated", {"field_value": new_value},
+                                                 f"document_name = '{document_name}' AND page_number = {page_number} AND field_name = '{field_name}'")
+
+            logger.info(f"Updated record: {document_name}, Page: {page_number}, Field: {field_name}, New Value: {new_value}")  
+        except Exception as e:
+            logger.exception(f"Error updating record value: {e}")
+            QMessageBox.critical(self, "Error", f"Error updating record value: {e}")            
 
     def review_backlog(self):
         """Handles the 'Review Backlog' button click."""
