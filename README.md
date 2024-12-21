@@ -44,6 +44,17 @@ The project uses several configuration files located in `pdf_processor/GUI/scrip
 
 Each configuration file specifies details about the data to extract from specific pages or sections of the PDF.  Modify these files to adjust the extraction logic according to the format of your input PDFs.  Refer to the individual configuration file comments for specific options and examples.
 
+## Module Structure
+
+The project's core PDF processing logic has been moved to a separate module for better organization and reusability.  The `pdf_processor/pdf_processing.py` module contains the following key functions:
+
+* `validate_config(config_path)`: Validates the configuration file.
+* `read_config(config_path)`: Reads and parses the configuration file.
+* `extract_text_from_bbox(image, bbox)`: Extracts text from a specified bounding box within an image.
+* `process_pdf(pdf_path, config, investment_experience_type)`: Processes a single PDF file based on the provided configuration.
+
+This modular structure allows for easier maintenance, testing, and potential reuse of these functions in other projects.
+
 ## Running Tests
 
 To run the test suite:
