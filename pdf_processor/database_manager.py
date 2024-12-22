@@ -6,10 +6,35 @@ import os
 
 
 class DatabaseManager:
-    def __init__(self, db_name: str = "extracted_data.db", schema_file_path: str = "schema.json"):
+    def __init__(self, db_name: str = "extracted_data.db"):
         self.db_name = db_name
-        self.schema_file_path = schema_file_path
         self.connection = self.connect_to_database()
+        self.DATABASE_SCHEMA = {
+            'completed_records': {
+                'document_name': 'TEXT',
+                'page_number': 'INTEGER',
+                'field_name': 'TEXT',
+                'field_value': 'TEXT',
+                'account_number': 'TEXT',
+                'box_x': 'INTEGER',
+                'box_y': 'INTEGER',
+                'box_width': 'INTEGER',
+                'box_height': 'INTEGER',
+                'status': 'TEXT'
+            },
+            'records_to_be_validated': {
+                'document_name': 'TEXT',
+                'page_number': 'INTEGER',
+                'field_name': 'TEXT',
+                'field_value': 'TEXT',
+                'account_number': 'TEXT',
+                'box_x': 'INTEGER',
+                'box_y': 'INTEGER',
+                'box_width': 'INTEGER',
+                'box_height': 'INTEGER'
+            }
+        }
+        self.create_tables()
 
     def connect_to_database(self, max_retries=3, retry_delay=1):
         for attempt in range(max_retries):
@@ -30,49 +55,20 @@ class DatabaseManager:
     def get_cursor(self):
         return self.connection.cursor()
 
-    def get_database_schema(self) -> Dict:
+    def get_database_schema(self):
+        return self.DATABASE_SCHEMA
+
+    def create_tables(self):
+        """Creates the necessary database tables if they don't exist."""
         try:
-            with open(self.schema_file_path, "r") as schema_file:
-                schema = json.load(schema_file)
-                return schema
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Schema file not found at {self.schema_file_path}")
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON format in schema file at {self.schema_file_path}")
-
-    def create_tables(self, schema: Dict):
-        """
-        Creates tables in the database based on the provided schema.
-
-        Args:
-            schema (Dict): A dictionary representing the database schema.
-                           Keys are table names, values are dictionaries containing column names and types.
-        """
-        with self.connection:
-            cursor = self.connection.cursor()
-            for table_name, table_schema in schema.items():
-                columns = ", ".join([f"{column_name} {column_type}" for column_name, column_type in table_schema.items()])
-                create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns})"
-                cursor.execute(create_table_query)
-
-    def create_tables_from_config(self, config_path: str):
-        """
-        Creates database tables based on the schema defined in config files.
-
-        Args:
-            config_path: The path to the directory containing config files.
-        """
-        schema = {}
-        for filename in os.listdir(config_path):
-            if filename.endswith(".json"):
-                filepath = os.path.join(config_path, filename)
-                with open(filepath, 'r') as f:
-                    config_data = json.load(f)
-                    table_name = config_data.get("table_name", filename[:-5])  # Default to filename without .json
-                    fields = config_data.get("global_fields", {})
-                    fields.update(config_data.get("fields", {}))  # Merge global and page-specific fields
-                    schema[table_name] = fields
-        self.create_tables(schema)
+            with self.connection:
+                cursor = self.connection.cursor()
+                for table_name, columns in self.DATABASE_SCHEMA.items():
+                    column_definitions = ", ".join([f"{col_name} {col_type}" for col_name, col_type in columns.items()])
+                    create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({column_definitions})"
+                    cursor.execute(create_table_query)
+        except sqlite3.Error as e:
+            print(f"Error creating tables: {e}")
 
     def insert_record(self, table_name: str, record_data: Dict):
         """
