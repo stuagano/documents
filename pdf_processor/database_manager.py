@@ -179,3 +179,38 @@ class DatabaseManager:
     def close_connection(self):
         if self.connection:
             self.connection.close()
+
+    def save_extracted_text(self, image_id: int, section: str, text: str) -> None:
+        """Save extracted text for an image section."""
+        query = """
+            INSERT INTO extracted_text (image_id, section, text)
+            VALUES (?, ?, ?)
+        """
+        self._execute_query(query, (image_id, section, text))
+
+    def get_image_data(self, image_id: int) -> dict:
+        """Retrieve all data for an image."""
+        query = "SELECT * FROM images WHERE id = ?"
+        return self._execute_query(query, (image_id,), fetch_one=True)
+
+    def save_bounding_boxes(self, image_id: int, boxes: dict) -> None:
+        """Save bounding box coordinates."""
+        query = """
+            INSERT INTO bounding_boxes (image_id, section, x, y, width, height)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        for section, (x, y, width, height) in boxes.items():
+            self._execute_query(query, (image_id, section, x, y, width, height))
+
+    def _execute_query(self, query: str, params: tuple = None, fetch_one: bool = False):
+        """Execute SQL query with error handling."""
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                cursor.execute(query, params or ())
+                if fetch_one:
+                    return cursor.fetchone()
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            logging.error(f"Database error: {e}")
+            raise

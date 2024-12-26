@@ -100,6 +100,7 @@ from pdf_processor.ui.backlog_models import BacklogRecord, BacklogManager
 from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, populate_config_combobox, load_and_display_pdf
 from pdf_processor.database_manager import DatabaseManager
 from utils import image_utils
+from pdf_processor.ui.backlog_manager import handle_backlog
 
 class BacklogRecord: # Moved from global scope to inside SimpleUI class
     def __init__(self, document_name, page_number, field_name, pdf_path):
@@ -530,16 +531,15 @@ class SimpleUI(QWidget):
     def select_input_directory(self):
 
         directory = QFileDialog.getExistingDirectory(self, 'Select Input Directory')
-        if directory:
+        if (directory):
             self.input_directory = directory
             self.input_dir_path.setText(directory)
 
     def select_output_directory(self):
 
         directory = QFileDialog.getExistingDirectory(self, 'Select Output Directory')
-        if directory:
+        if (directory):
             self.output_directory = directory
-            self.output_dir_path.setText(directory)
 
     def extract_to_files(self):
         """
@@ -634,12 +634,16 @@ class SimpleUI(QWidget):
             self._run_precondition_check(images)
             extracted_data = self._extract_data()  # Store the extracted data
 
-            # ... (Further processing of extracted_data if needed) ...
-
         except ImportError as e:
             raise ImportError(f'Import error: {e}') from e  # Chain the exception
 
     def display_image_with_boxes(self, image, bounding_boxes):
+        """Display image with boxes and save box coordinates."""
+        self.db_manager.save_bounding_boxes(
+            image_id=self.current_image_id,
+            boxes=bounding_boxes
+        )
+        # ...existing drawing code...
         """
         Displays the image with bounding boxes in a new pop-out window.
         
@@ -670,20 +674,15 @@ class SimpleUI(QWidget):
         return QPixmap.fromImage(qimage)
 
     def extract_text_from_box(self, image, box):
-
-        """
-        Crops the image to the bounding box and extracts text using OCR.
-        
-        Args:
-            image (PIL.Image.Image): The original image.
-            box (tuple): Bounding box coordinates (x, y, width, height).
-        
-        Returns:
-            str: Extracted text.
-        """
-        x, y, width, height = box
-        cropped_img = image.crop((x, y, x + width, y + height))
-        text = pytesseract.image_to_string(cropped_img)
+        """Extract text from image box and save to database."""
+        text = pytesseract.image_to_string(
+            image.crop((box[0], box[1], box[0] + box[2], box[1] + box[3]))
+        )
+        self.db_manager.save_extracted_text(
+            image_id=self.current_image_id,
+            section=self.current_section,
+            text=text.strip()
+        )
         return text.strip()
 
     def extract_investment_data(self, text):
@@ -920,6 +919,10 @@ class SimpleUI(QWidget):
         except Exception as e:
             logging.error(f"Error updating document status: {e}")
             QMessageBox.critical(self, "Error", f"Error updating document status: {e}")
+
+    def process_backlog_item(self, item, db_manager):
+        """Process a single backlog item using centralized handler."""
+        return handle_backlog(item, db_manager)
 
 
 if __name__ == '__main__':
