@@ -21,7 +21,15 @@ class BacklogManager:
         self.ui_instance = ui_instance
 
     def add_to_backlog(self, pdf_path, page_number, field_name):
+        """Adds a new record to the backlog queue."""
         self.backlog_queue.append(BacklogRecord(os.path.basename(pdf_path), page_number, field_name, pdf_path))
+
+    def update_backlog_list(self, backlog_list_widget):
+        """Updates the backlog list widget with the current backlog queue."""
+        backlog_list_widget.clear()
+        for record in self.backlog_queue:
+            item_text = f"{record.document_name} - Page {record.page_number} - {record.field_name}"
+            backlog_list_widget.addItem(item_text)
 
     def update_backlog_list(self, backlog_list_widget):
         backlog_list_widget.clear()

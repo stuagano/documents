@@ -352,25 +352,6 @@ class SimpleUI(QWidget):
         self.progress_bar.setFormat(SC2_MESSAGES[self.progress_message_index])
         self.progress_message_index = (self.progress_message_index + 1) % len(SC2_MESSAGES)
 
-    def add_records_to_db(self):
-        """Creates database tables if they don't exist, using the provided schema."""
-        try:
-            self.database_manager.create_tables()  # Use DatabaseManager to create tables
-            logging.info("Database tables created successfully.")
-        except Exception as e:
-            logging.exception("Error creating database tables: %s", e)
-            QMessageBox.critical(self, 'Error', f'An error occurred during table creation: {e}')
-
-
-    def _extract_data_from_pdfs(self, config_path):
-        """Extracts data from PDFs using a given config file."""
-        extracted_data = {}
-        for filename in os.listdir(self.input_directory):
-            if filename.endswith(".pdf"):
-                pdf_path = os.path.join(self.input_directory, filename)
-                extracted_data[pdf_path] = extract_data_from_pdf_with_config(pdf_path, config_path)
-        return extracted_data
-
     def _insert_record(self, cursor, table_name, record_data, config_schema, pdf_path):
         """Validates and inserts individual records into the database, handling duplicates."""
         account_number = record_data.get('account_number')
@@ -396,10 +377,6 @@ class SimpleUI(QWidget):
         """Updates the progress bar."""
         self.progress_bar.setValue(config_index)
         self.show_message(message)
-
-    def _add_record_to_backlog(self, pdf_path, page_number, field_name):
-        """Adds a record to the backlog queue."""
-        self.backlog_queue.append(BacklogRecord(os.path.basename(pdf_path), page_number, field_name, pdf_path))
 
 
     
@@ -428,7 +405,7 @@ class SimpleUI(QWidget):
                         logging.warning(f"No schema found in config file: {config_file}")
                         continue
 
-                    extracted_data = self._extract_data_from_pdfs(config_path)
+                    extracted_data = self.backlog_manager.extract_data_from_pdfs(self.input_directory, config_path)
 
                     for pdf_path, pdf_data in extracted_data.items():
                          for page_number, page_data in pdf_data.items():
@@ -443,9 +420,9 @@ class SimpleUI(QWidget):
                                         **{k: v for k, v in page_data.items() if k.endswith('_bbox')}
                                     }
                                     if not self._insert_record(cursor, "completed_records", record_data, config_schema, pdf_path):
-                                        self.backlog_manager.add_to_backlog(pdf_path, page_number, field_name)                                       
+                                        self.backlog_manager.add_to_backlog(pdf_path, page_number, field_name)  # Use backlog_manager
                                 else:
-                                    self.backlog_manager.add_to_backlog(pdf_path, page_number, field_name)
+                                    self.backlog_manager.add_to_backlog(pdf_path, page_number, field_name)  # Use backlog_manager
                     config_index += 1
                     
                     self._update_progress(config_index, len(self.config_files) - 1, f"Processed config: {config_file}")
@@ -467,6 +444,16 @@ class SimpleUI(QWidget):
         self.progress_bar.setFormat(SC2_MESSAGES[self.progress_message_index] + " - " + message)
         self.progress_message_index = (self.progress_message_index + 1) % len(SC2_MESSAGES)
 
+    def add_records_to_db(self):
+        """Creates database tables if they don't exist and populates them with data."""
+        try:
+            self.database_manager.create_tables()  # Use DatabaseManager to create tables
+            logging.info("Database tables created successfully.")
+            self._populate_database()  # Populate the database with extracted data
+        except Exception as e:
+            logging.exception("Error creating database tables or populating database: %s", e)
+            QMessageBox.critical(self, 'Error', f'An error occurred during table creation or database population: {e}')
+
     def start_progress(self):
         try:
             self.progress_bar.setMinimum(0)
@@ -485,7 +472,7 @@ class SimpleUI(QWidget):
         print("DataFrame Head:")
         print(df.head())
         
-    def validate_and_convert_data_types(self, data_dict: dict[str, Any], schema: dict[str, type]) -> dict[str, Any]:
+    def validate_and_convert_data_types(self, data_dict, schema):
         """Validates and converts data types to match the database schema."""
         validated_data = {}
         for field_name, field_value in data_dict.items():
@@ -528,7 +515,7 @@ class SimpleUI(QWidget):
             QMessageBox.critical(self, 'Error', f'Error loading scripts: {e}')
             logger.exception("Error loading scripts: %s", e)
 
-    def select_input_directory(self):
+    def select_input_directory(self):        
 
         directory = QFileDialog.getExistingDirectory(self, 'Select Input Directory')
         if (directory):
@@ -536,7 +523,7 @@ class SimpleUI(QWidget):
             self.input_dir_path.setText(directory)
 
     def select_output_directory(self):
-
+        
         directory = QFileDialog.getExistingDirectory(self, 'Select Output Directory')
         if (directory):
             self.output_directory = directory
@@ -601,7 +588,7 @@ class SimpleUI(QWidget):
             raise ValueError("Precondition check failed. Please review the document.")
         return results
 
-    def _extract_data(self):
+    def _extract_data(self):        
         """Extracts data from the PDF using the selected config file."""
         data = extract_data_from_pdf(self.pdf_file, self.config_file)
         return data
@@ -614,7 +601,7 @@ class SimpleUI(QWidget):
                 raise ValueError("Image comparison failed. Extraction cancelled.")
         return True  # Indicate continuation
 
-    def _run_extraction(self):
+    def _run_extraction(self):        
         """Performs the extraction process."""
         try:
             selected_script_item = self.script_list.currentItem()
@@ -636,6 +623,8 @@ class SimpleUI(QWidget):
 
         except ImportError as e:
             raise ImportError(f'Import error: {e}') from e  # Chain the exception
+
+    
 
     def display_image_with_boxes(self, image, bounding_boxes):
         """Display image with boxes and save box coordinates."""
@@ -851,11 +840,7 @@ class SimpleUI(QWidget):
             logger.exception(f"Database error moving record: {e}")  # Log the exception
             QMessageBox.critical(self, "Error", f"Database error moving record: {e}")
             if conn:
-                conn.rollback()
-        finally:
-            if cursor:
-                cursor.close()            
-            self.database_manager.close_connection()
+                conn.rollback()        
 
     def update_bounding_box_in_db(self, document_name, page_number, field_name, new_x, new_y, new_width, new_height):        
         try:
@@ -879,15 +864,6 @@ class SimpleUI(QWidget):
             logger.error(f"Database error updating bounding box: {e}")
             QMessageBox.critical(self, "Error", f"Database error updating bounding box: {e}")
             conn.rollback()  # Rollback changes if an error occurs
-        finally:            
-            self.database_manager.close_connection()    
-    
-    def _update_backlog_list(self):
-        """Refreshes the backlog list widget with the current backlog items."""
-        self.backlog_list.clear()  # Clear existing items
-        for record in self.backlog_manager.get_backlog():
-            item_text = f"{record.document_name} - Page {record.page_number} - {record.field_name}"
-            self.backlog_list.addItem(item_text)  # Add each backlog item to the list widget
             
     def update_record_value(self, document_name, page_number, field_name, new_value):
         """Updates the field_value in the records_to_be_validated table."""
@@ -901,14 +877,7 @@ class SimpleUI(QWidget):
             logger.exception(f"Error updating record value: {e}")
             QMessageBox.critical(self, "Error", f"Error updating record value: {e}")            
 
-    def review_backlog(self):
-        """Handles the 'Review Backlog' button click."""
-        try:            
-            self.backlog_manager.review_backlog()
-            self._update_backlog_list()  # Update the backlog list widget
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while reviewing the backlog: {e}")
-            logging.exception(f"Error reviewing backlog: {e}")  
+
 
 
     def update_document_status(self, document_name, status):
