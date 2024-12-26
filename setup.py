@@ -1,3 +1,4 @@
+__version__ = "0.1.0"
 import json
 import sqlite3
 import os
