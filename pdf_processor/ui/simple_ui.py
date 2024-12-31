@@ -7,11 +7,7 @@ import sys
 import os
 import sqlite3
 
-# Add project root to Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-sys.path.insert(0, project_root)
-
-from ui_utils import *
+from pdf_processor.ui.ui_utils import *
 
 
 import json
@@ -43,14 +39,7 @@ from PyQt5.QtWidgets import QRadioButton
 from PyQt5.QtCore import QAbstractTableModel
 from typing import Any  # new import
 
-from pdf_processor.logic.pdf_processor import (  # Importing from pdf_processor.py
-    initialize_database, # new import
-    precondition_check,
-    compare_images, 
-    extract_data_from_pdf,  # New import
-    convert_pdf_to_images
-    
-)
+from pdf_processor.pdf_processing import initialize_database, precondition_check, compare_images, extract_data_from_pdf, convert_pdf_to_images
 
 # Set up logging
 logging.basicConfig(filename='pdf_processor.log', level=logging.INFO,  # Changed to INFO for more details
@@ -99,7 +88,7 @@ from pdf_processor.ui.backlog_models import BacklogRecord, BacklogManager
 #New imports
 from pdf_processor.ui.ui_utils import extract_data_from_pdf_with_config, populate_config_combobox, load_and_display_pdf
 from pdf_processor.database_manager import DatabaseManager
-from utils import image_utils
+from utils.image_utils import *
 from pdf_processor.ui.backlog_manager import handle_backlog
 
 class BacklogRecord: # Moved from global scope to inside SimpleUI class

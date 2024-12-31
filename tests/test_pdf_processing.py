@@ -3,8 +3,7 @@ import unittest
 from unittest.mock import patch, mock_open, MagicMock
 import json
 import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pdf_processor')))
+
 from pdf_processor.pdf_processing import validate_config, read_config, extract_text_from_bbox, process_pdf
 from pdf_processor.ui.scripts.config_constants import PAGE_NUMBER, BOXES
 
