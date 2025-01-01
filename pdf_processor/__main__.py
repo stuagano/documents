@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pdf_processor.GUI.simple_ui import PDFProcessorGUI
+from pdf_processor.ui.simple_ui import PDFProcessorGUI
 import tkinter as tk
 
 def main():
