@@ -1,4 +1,73 @@
 import sys
+from pathlib import Path
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout,
+    QLabel, QPushButton, QProgressBar, QComboBox
+)
+from .ui_utils import (
+    load_config_options, select_input_directory, select_output_directory, process_pdfs
+)
+
+class SimpleUI(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.config_file = ""
+        self.input_dir = ""
+        self.output_dir = ""
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        self.input_label = QLabel('Input Directory:')
+        self.input_btn = QPushButton('Select')
+        self.input_btn.clicked.connect(self.select_input_directory)
+        layout.addWidget(self.input_label)
+        layout.addWidget(self.input_btn)
+        self.output_label = QLabel('Output Directory:')
+        self.output_btn = QPushButton('Select')
+        self.output_btn.clicked.connect(self.select_output_directory)
+        layout.addWidget(self.output_label)
+        layout.addWidget(self.output_btn)
+        self.config_combo = QComboBox()
+        self.load_configs()
+        layout.addWidget(QLabel('Config File:'))
+        layout.addWidget(self.config_combo)
+        self.process_btn = QPushButton('Process PDFs')
+        self.process_btn.clicked.connect(self.process_pdfs)
+        layout.addWidget(self.process_btn)
+        self.progress_bar = QProgressBar()
+        layout.addWidget(self.progress_bar)
+        self.setLayout(layout)
+        self.setWindowTitle('PDF Processor')
+
+    def select_input_directory(self):
+        self.input_dir = select_input_directory(self)
+        if self.input_dir:
+            self.input_label.setText(f'Input: {self.input_dir}')
+
+    def select_output_directory(self):
+        self.output_dir = select_output_directory(self)
+        if self.output_dir:
+            self.output_label.setText(f'Output: {self.output_dir}')
+
+    def load_configs(self):
+        config_dir = Path(__file__).parent / 'scripts' / 'configs'
+        configs = load_config_options(config_dir)
+        self.config_combo.addItems(configs)
+        self.config_combo.currentIndexChanged.connect(self.update_config_file)
+
+    def update_config_file(self, index):
+        self.config_file = self.config_combo.itemText(index)
+
+    def process_pdfs(self):
+        process_pdfs(self.input_dir, self.output_dir, self.config_file, self.progress_bar)
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    ui = SimpleUI()
+    ui.show()
+    sys.exit(app.exec())
+
 from pathlib import Path  # For config path handling
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout,

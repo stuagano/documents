@@ -14,7 +14,49 @@ from PyQt6.QtCore import Qt, QModelIndex
 from PIL import Image, ImageTk
 
 
+import os
+from pathlib import Path
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
+import logging
+
 CONFIG_DIR = "pdf_processor/ui/scripts/configs"
+
+def load_config_options(configs_dir):
+    """Gets the config files from the configs directory and returns a list of strings."""
+    config_options = [f for f in os.listdir(configs_dir) if f.endswith(".json")]
+    if not config_options:
+        QMessageBox.warning(None, "Error", f"No config files found in the '{configs_dir}' directory.")
+        return []
+    return config_options
+
+def select_input_directory(parent):
+    dir_path = QFileDialog.getExistingDirectory(parent, "Select Input Directory")
+    return dir_path
+
+def select_output_directory(parent):
+    dir_path = QFileDialog.getExistingDirectory(parent, "Select Output Directory")
+    return dir_path
+
+
+def process_pdfs(input_dir, output_dir, config_file, progress_bar):
+    if not input_dir or not output_dir:
+        return
+
+    try:
+        config_path = Path(config_file)
+        progress_bar.setRange(0, 0)  # Indeterminate progress
+        logging.info(f"Processing PDFs in {input_dir} with config {config_path} to {output_dir}")
+        # Placeholder for actual processing logic
+        # ...
+
+    except Exception as e:
+        logging.error(f"Error processing PDFs: {e}")
+        QMessageBox.critical(None, "Error", f"Error processing PDFs: {e}")
+
+    finally:
+        progress_bar.setRange(0, 1)
+        progress_bar.setValue(1)
+
 
 
 # Create the ui_utils.py file if it doesn't exist.
